@@ -1,5 +1,5 @@
 # Stage 1: Builder
-FROM python:3.11-alpine AS builder
+FROM python:3.14-alpine AS builder
 
 # Set locale for consistent behavior and to avoid deprecation warnings
 ENV LANG=C.UTF-8
@@ -18,7 +18,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --user --no-index --find-links=/tmp/wheels -r requirements.txt
 
 # Stage 2: Runtime
-FROM python:3.11-alpine
+FROM python:3.14-alpine
 
 # Set locale for consistent behavior and to avoid deprecation warnings
 ENV LANG=C.UTF-8

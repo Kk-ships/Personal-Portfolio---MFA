@@ -35,12 +35,17 @@ interface SummaryData {
 import { useToast } from '@/components/ui/Toast';
 import Link from 'next/link';
 
+type SortField = 'scheme_name' | 'units' | 'current_nav' | 'current_value' | 'invested_value';
+type SortDirection = 'asc' | 'desc';
+
 export default function DashboardPage() {
     const [data, setData] = useState<SummaryData | null>(null);
     const [loading, setLoading] = useState(true);
     const [syncing, setSyncing] = useState(false);
     const [syncProgress, setSyncProgress] = useState<string | null>(null);
     const [showEstimatedBanner, setShowEstimatedBanner] = useState(true);
+    const [sortField, setSortField] = useState<SortField>('current_value');
+    const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
     const router = useRouter();
     const toast = useToast();
 
@@ -135,6 +140,56 @@ export default function DashboardPage() {
             toast.error("Failed to initiate NAV sync.");
             setSyncing(false);
         }
+    };
+
+    const handleSort = (field: SortField) => {
+        if (sortField === field) {
+            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortField(field);
+            setSortDirection('desc');
+        }
+    };
+
+    const getSortedHoldings = (holdings: Holding[]) => {
+        return [...holdings].sort((a, b) => {
+            let aVal: number | string = 0;
+            let bVal: number | string = 0;
+
+            switch (sortField) {
+                case 'scheme_name':
+                    aVal = a.scheme_name.toLowerCase();
+                    bVal = b.scheme_name.toLowerCase();
+                    break;
+                case 'units':
+                    aVal = a.units;
+                    bVal = b.units;
+                    break;
+                case 'current_nav':
+                    aVal = a.current_nav;
+                    bVal = b.current_nav;
+                    break;
+                case 'current_value':
+                    aVal = a.current_value;
+                    bVal = b.current_value;
+                    break;
+                case 'invested_value':
+                    aVal = a.invested_value;
+                    bVal = b.invested_value;
+                    break;
+            }
+
+            if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+            if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+            return 0;
+        });
+    };
+
+    const SortIcon = ({ field }: { field: SortField }) => {
+        if (sortField !== field) {
+            return <span className="opacity-30 ml-1">⇅</span>;
+        }
+        return <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>;
     };
 
     if (loading || (syncing && !data)) {
@@ -256,15 +311,25 @@ export default function DashboardPage() {
                         <table className="w-full text-left border-collapse">
                             <thead>
                                 <tr className="border-b border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950/50 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                                    <th className="px-6 py-4 rounded-tl-xl whitespace-nowrap">Scheme</th>
-                                    <th className="px-6 py-4 text-right whitespace-nowrap">Units</th>
-                                    <th className="px-6 py-4 text-right whitespace-nowrap">NAV</th>
-                                    <th className="px-6 py-4 text-right whitespace-nowrap">Current Value</th>
-                                    <th className="px-6 py-4 text-right rounded-tr-xl whitespace-nowrap">Invested Value</th>
+                                    <th className="px-6 py-4 rounded-tl-xl whitespace-nowrap cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors" onClick={() => handleSort('scheme_name')}>
+                                        <span className="flex items-center">Scheme<SortIcon field="scheme_name" /></span>
+                                    </th>
+                                    <th className="px-6 py-4 text-right whitespace-nowrap cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors" onClick={() => handleSort('units')}>
+                                        <span className="flex items-center justify-end">Units<SortIcon field="units" /></span>
+                                    </th>
+                                    <th className="px-6 py-4 text-right whitespace-nowrap cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors" onClick={() => handleSort('current_nav')}>
+                                        <span className="flex items-center justify-end">NAV<SortIcon field="current_nav" /></span>
+                                    </th>
+                                    <th className="px-6 py-4 text-right whitespace-nowrap cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors" onClick={() => handleSort('current_value')}>
+                                        <span className="flex items-center justify-end">Current Value<SortIcon field="current_value" /></span>
+                                    </th>
+                                    <th className="px-6 py-4 text-right rounded-tr-xl whitespace-nowrap cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors" onClick={() => handleSort('invested_value')}>
+                                        <span className="flex items-center justify-end">Invested Value<SortIcon field="invested_value" /></span>
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                                {holdings.map((h) => (
+                                {getSortedHoldings(holdings).map((h) => (
                                     <tr key={h.isin} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
                                         <td className="px-6 py-4 text-sm font-medium">
                                             <Link href={h.amfi_code ? `/scheme/${h.amfi_code}` : '#'} className="text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 block truncate max-w-[200px] sm:max-w-xs md:max-w-md xl:max-w-xl transition-colors" title={h.scheme_name}>

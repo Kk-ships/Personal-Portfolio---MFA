@@ -1,8 +1,13 @@
 from typing import Optional, List
-from datetime import date as dt_date, datetime
+from datetime import date as dt_date, datetime, timezone
 from sqlmodel import Field, SQLModel, Relationship, UniqueConstraint
 from uuid import UUID, uuid4
 import hashlib
+
+
+def utc_now() -> datetime:
+    """Helper function for default_factory to return timezone-aware UTC datetime"""
+    return datetime.now(timezone.utc)
 
 
 # Shared Data
@@ -57,7 +62,7 @@ class User(SQLModel, table=True):
     name: str
     pan: str = Field(index=True, unique=True)
     pin_hash: Optional[str] = Field(default=None, nullable=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
 
     portfolios: List["Portfolio"] = Relationship(back_populates="user")
 
@@ -111,7 +116,7 @@ class Transaction(SQLModel, table=True):
 class SystemState(SQLModel, table=True):
     key: str = Field(primary_key=True)
     value: str
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 # Fund Intelligence Extended Data
@@ -121,7 +126,7 @@ class FundEnrichment(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     scheme_id: int = Field(foreign_key="scheme.id", unique=True)
     fund_name: Optional[str] = Field(default="Unknown Fund")
-    fetched_at: datetime = Field(default_factory=datetime.utcnow)
+    fetched_at: datetime = Field(default_factory=utc_now)
 
     validation_status: int = Field(
         default=0
@@ -258,6 +263,13 @@ class FundPerformance(SQLModel, table=True):
 
     # Snapshot date (NEW)
     recorded_at: Optional[dt_date] = None
+
+    # Performance history fields (stored as JSON strings)
+    quarterly_performance: Optional[str] = None  # JSON array
+    best_periods: Optional[str] = None  # JSON object
+    worst_periods: Optional[str] = None  # JSON object
+    sip_returns: Optional[str] = None  # JSON object
+    cagr_cat_avg: Optional[str] = None  # JSON object
 
     enrichment: FundEnrichment = Relationship(back_populates="performance")
 

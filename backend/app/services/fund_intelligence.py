@@ -2,7 +2,7 @@ import os
 import json
 import logging
 import requests
-from datetime import datetime, date as dt_date
+from datetime import datetime, date as dt_date, timezone
 from typing import Dict, Any, Optional
 
 from app.models.models import (
@@ -215,7 +215,7 @@ def parse_enrichment_response(
     enrichment = FundEnrichment(
         scheme_id=scheme_id,
         fund_name=data.get("fund_name", "Unknown Fund"),
-        fetched_at=datetime.utcnow(),
+        fetched_at=datetime.now(timezone.utc),
 
         # Identifiers
         code=data.get("code"),
@@ -333,6 +333,22 @@ def parse_enrichment_response(
         enrichment.performance.cagr_rank_10y = _safe_int(cagr_ranks.get("10 Years"))
 
         enrichment.performance.recorded_at = _safe_date(latest_hist.get("recorded_at"))
+
+        # Extract and store performance history fields as JSON strings
+        if latest_hist.get("quarterly_performance"):
+            enrichment.performance.quarterly_performance = json.dumps(latest_hist["quarterly_performance"])
+        
+        if latest_hist.get("best_periods"):
+            enrichment.performance.best_periods = json.dumps(latest_hist["best_periods"])
+        
+        if latest_hist.get("worst_periods"):
+            enrichment.performance.worst_periods = json.dumps(latest_hist["worst_periods"])
+        
+        if latest_hist.get("sip_returns"):
+            enrichment.performance.sip_returns = json.dumps(latest_hist["sip_returns"])
+        
+        if cagr_metrics.get("cagr_cat_avg"):
+            enrichment.performance.cagr_cat_avg = json.dumps(cagr_metrics["cagr_cat_avg"])
 
         # Parse Risk Metrics
         if latest_hist.get("risk_metrics"):

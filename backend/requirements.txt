@@ -30,3 +30,8 @@ RapidFuzz==3.14.3
 
 # Cryptography
 cryptography==46.0.5
+
+# Testing
+pytest==8.2.2
+pytest-mock==3.14.0
+pytest-cov==5.0.0

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Generator
 
 from fastapi.testclient import TestClient
@@ -70,7 +70,7 @@ def test_get_scheme_enrichment_cache_hit(monkeypatch) -> None:
             FundEnrichment(
                 scheme_id=scheme.id,
                 fund_name="Cached Scheme",
-                fetched_at=datetime.utcnow(),
+                fetched_at=datetime.now(timezone.utc),
                 latest_nav_api=99.9,
             )
         )
@@ -102,7 +102,7 @@ def test_get_scheme_enrichment_cache_expired_triggers_refresh(monkeypatch) -> No
             FundEnrichment(
                 scheme_id=scheme.id,
                 fund_name="Stale Scheme",
-                fetched_at=datetime.utcnow() - timedelta(days=8),
+                fetched_at=datetime.now(timezone.utc) - timedelta(days=8),
                 latest_nav_api=80.0,
             )
         )
@@ -140,7 +140,7 @@ def test_get_scheme_enrichment_force_refresh(monkeypatch) -> None:
             FundEnrichment(
                 scheme_id=scheme.id,
                 fund_name="Old Scheme",
-                fetched_at=datetime.utcnow(),
+                fetched_at=datetime.now(timezone.utc),
                 latest_nav_api=88.0,
             )
         )

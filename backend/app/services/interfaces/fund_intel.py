@@ -28,6 +28,13 @@ class PerformanceDTO(BaseModel):
     cagr_rank_5y: Optional[int] = None
     cagr_rank_10y: Optional[int] = None
     recorded_at: Optional[dt_date] = None
+    
+    # Performance history fields (stored as JSON strings)
+    quarterly_performance: Optional[str] = None
+    best_periods: Optional[str] = None
+    worst_periods: Optional[str] = None
+    sip_returns: Optional[str] = None
+    cagr_cat_avg: Optional[str] = None
 
 
 class RiskMetricsDTO(BaseModel):

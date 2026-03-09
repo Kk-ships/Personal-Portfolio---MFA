@@ -2,6 +2,7 @@
 
 # Filter out locale variables for /etc/environment and use /etc/default/locale instead
 printenv | grep -v "no_proxy" | grep -vE "^(LANG|LC_|LANGUAGE)" >> /etc/environment
+mkdir -p /etc/default
 echo "LANG=C.UTF-8" > /etc/default/locale
 echo "LC_ALL=C.UTF-8" >> /etc/default/locale
 

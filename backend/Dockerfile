@@ -1,5 +1,5 @@
 # Stage 1: Builder
-FROM python:3.14-alpine AS builder
+FROM python:3.13-alpine AS builder
 
 # Set locale for consistent behavior and to avoid deprecation warnings
 ENV LANG=C.UTF-8
@@ -8,17 +8,35 @@ ENV LC_ALL=C.UTF-8
 WORKDIR /app
 
 # Install build dependencies for compiling Python packages with C extensions
-RUN apk add --no-cache gcc musl-dev linux-headers postgresql-dev
+RUN apk add --no-cache \
+    gcc \
+    musl-dev \
+    linux-headers \
+    postgresql-dev \
+    libffi-dev \
+    openssl-dev \
+    cargo \
+    rust
 
-# Install dependencies in a virtual environment with cache mount for faster rebuilds
-COPY requirements.txt .
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --upgrade pip wheel && \
-    pip wheel --wheel-dir=/tmp/wheels -r requirements.txt && \
-    pip install --user --no-index --find-links=/tmp/wheels -r requirements.txt
+# Install uv for faster package management
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-# Stage 2: Runtime
-FROM python:3.14-alpine
+# Copy requirements and install all dependencies (including dev)
+COPY requirements.txt pyproject.toml ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --system -r requirements.txt
+
+# Stage 2: Test
+FROM builder AS test
+
+# Copy application code for testing
+COPY . .
+
+# Run tests
+RUN pytest -v --tb=short --cov=app --cov-report=term-missing
+
+# Stage 3: Runtime
+FROM python:3.13-alpine AS runtime
 
 # Set locale for consistent behavior and to avoid deprecation warnings
 ENV LANG=C.UTF-8
@@ -26,22 +44,31 @@ ENV LC_ALL=C.UTF-8
 
 WORKDIR /app
 
-# Install only runtime dependencies (curl for healthcheck, sqlite for database)
-RUN apk add --no-cache curl sqlite libpq bash
+# Install runtime dependencies
+RUN apk add --no-cache \
+    curl \
+    sqlite \
+    libpq \
+    bash \
+    libffi \
+    openssl
 
-# Copy Python packages from builder stage
-COPY --from=builder /root/.local /root/.local
+# Copy Python packages from builder stage (exclude dev dependencies by copying selectively)
+COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
+COPY --from=builder /usr/local/bin/uvicorn /usr/local/bin/
+COPY --from=builder /usr/local/bin/casparser /usr/local/bin/
 
 # Copy application code
 COPY . .
-# move fallback NAVdata
-COPY /app/data/NAVAll.txt /data/
 
-COPY start.sh /app
+# Move fallback NAV data
+RUN mkdir -p /data && cp /app/app/data/NAVAll.txt /data/ || true
 
+# Make start script executable
 RUN chmod +x /app/start.sh && sed -i 's/\r$//' /app/start.sh
 
-# Make sure scripts in .local are usable
-ENV PATH=/root/.local/bin:$PATH
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8001/api/health || exit 1
 
 CMD ["/app/start.sh"]

@@ -1,10 +1,45 @@
+# Version control
+.git/
+.github/
+.gitignore
+
+# Documentation
+*.md
+README*
+Dockerfile.readme
+
+# Docker files
+docker-compose*.yml
+
+# Python artifacts
 __pycache__
-.pytest_cache
 *.pyc
 *.pyo
+*.pyd
+.pytest_cache
+.coverage
+.ruff_cache
+*.egg-info
+build/
+dist/
+
+# Virtual environments
 venv/
 .venv/
-data/
-tests/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment files
 .env
-.git/
+.env.local
+
+# Pre-commit
+.pre-commit-config.yaml
+
+# Data files (exclude from build, but keep tests)
+data/NAVAll.txt

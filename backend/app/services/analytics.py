@@ -1,11 +1,10 @@
-from sqlmodel import Session, select, func, case
-from app.models.models import Transaction, Scheme, Portfolio, Folio, SystemState
-from pyxirr import xirr
-from datetime import date
-from typing import List, Dict, Any
 from collections import defaultdict
+from datetime import date
 
+from pyxirr import xirr
+from sqlmodel import Session, case, func, select
 
+from app.models.models import Folio, Portfolio, SystemState, Transaction
 from app.services.interfaces.market_data import get_schemes_by_ids
 
 
@@ -34,9 +33,7 @@ def get_portfolio_summary(session: Session, user_id: str):
                     (Transaction.type.notin_(REDEMPTION_TYPES), Transaction.amount),
                     else_=0,
                 )
-            ).label(
-                "total_invested"
-            ),  # Simple sum of inflows
+            ).label("total_invested"),  # Simple sum of inflows
         )
         .join(Folio, Transaction.folio_id == Folio.id)
         .join(Portfolio, Folio.portfolio_id == Portfolio.id)

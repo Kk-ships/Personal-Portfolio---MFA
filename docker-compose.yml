@@ -26,6 +26,6 @@ services:
         condition: service_healthy
 
 volumes:
-  data: 
+  data:
     name: mfa-data
 #    external: true

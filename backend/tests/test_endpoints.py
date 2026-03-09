@@ -1,25 +1,26 @@
-import pytest
-from fastapi.testclient import TestClient
-from sqlmodel import Session, create_engine, SQLModel, select
-from sqlmodel.pool import StaticPool
-from uuid import uuid4, UUID
-from datetime import date, datetime, timedelta
 import hashlib
 import io
-from unittest.mock import Mock, patch, MagicMock
+from datetime import date, datetime, timedelta
+from unittest.mock import patch
+from uuid import uuid4
 
-from main import app
+import pytest
+from fastapi.testclient import TestClient
+from sqlmodel import Session, SQLModel, create_engine
+from sqlmodel.pool import StaticPool
+
 from app.db.engine import get_session
 from app.models.models import (
-    User,
-    Portfolio,
     Folio,
-    Scheme,
-    Transaction,
-    NavHistory,
-    SystemState,
     FundEnrichment,
+    NavHistory,
+    Portfolio,
+    Scheme,
+    SystemState,
+    Transaction,
+    User,
 )
+from main import app
 
 
 # Test database setup
@@ -323,7 +324,9 @@ def test_remove_pin_incorrect(client: TestClient, test_user_with_pin):
 
 def test_remove_pin_no_pin_set(client: TestClient, test_user):
     """Test removing PIN when no PIN is set."""
-    response = client.post(f"/api/users/{test_user.id}/remove-pin", json={"pin": "1234"})
+    response = client.post(
+        f"/api/users/{test_user.id}/remove-pin", json={"pin": "1234"}
+    )
     assert response.status_code == 200
     assert response.json()["success"] is True
 
@@ -347,9 +350,7 @@ def test_get_sync_status_with_data(client: TestClient, session: Session):
     """Test getting sync status with existing state."""
     # Create system state entries
     session.add(SystemState(key="nav_sync_status", value="IN_PROGRESS"))
-    session.add(
-        SystemState(key="nav_sync_last_run", value="2026-03-08T10:30:00")
-    )
+    session.add(SystemState(key="nav_sync_last_run", value="2026-03-08T10:30:00"))
     session.add(SystemState(key="nav_sync_progress", value="100/200"))
     session.commit()
 
@@ -364,9 +365,7 @@ def test_get_sync_status_with_data(client: TestClient, session: Session):
 def test_get_sync_status_completed(client: TestClient, session: Session):
     """Test getting sync status when sync is completed."""
     session.add(SystemState(key="nav_sync_status", value="COMPLETED"))
-    session.add(
-        SystemState(key="nav_sync_last_run", value="2026-03-08T12:00:00")
-    )
+    session.add(SystemState(key="nav_sync_last_run", value="2026-03-08T12:00:00"))
     session.commit()
 
     response = client.get("/api/status/sync")
@@ -563,9 +562,7 @@ def test_sync_nav_success(
         "total_gain": 2000.0,
     }
 
-    response = client.post(
-        "/api/sync-nav", headers={"x-user-id": str(test_user.id)}
-    )
+    response = client.post("/api/sync-nav", headers={"x-user-id": str(test_user.id)})
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "success"
@@ -585,9 +582,7 @@ def test_sync_nav_missing_header(client: TestClient):
 def test_sync_nav_failure(mock_sync, mock_subprocess, client: TestClient, test_user):
     """Test NAV sync when it fails."""
     mock_sync.side_effect = Exception("Sync failed")
-    response = client.post(
-        "/api/sync-nav", headers={"x-user-id": str(test_user.id)}
-    )
+    response = client.post("/api/sync-nav", headers={"x-user-id": str(test_user.id)})
     assert response.status_code == 500
     assert "Sync failed" in response.json()["detail"]
 
@@ -602,7 +597,12 @@ def test_sync_nav_failure(mock_sync, mock_subprocess, client: TestClient, test_u
 @patch("app.api.cas.trigger_background_sync")
 @patch("app.api.cas.process_cas_data")
 def test_upload_cas_success(
-    mock_process, mock_bg_sync, mock_backfill, mock_prefetch, client: TestClient, test_user
+    mock_process,
+    mock_bg_sync,
+    mock_backfill,
+    mock_prefetch,
+    client: TestClient,
+    test_user,
 ):
     """Test uploading CAS file successfully."""
     mock_process.return_value = {

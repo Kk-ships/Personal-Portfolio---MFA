@@ -1,8 +1,9 @@
-from rapidfuzz import fuzz
-from datetime import datetime, timedelta, timezone
 import logging
+from datetime import UTC, datetime
 
-from app.models.models import FundEnrichment, Scheme
+from rapidfuzz import fuzz
+
+from app.models.models import FundEnrichment
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,7 @@ def validate_freshness(fetched_at: datetime) -> int:
     if not fetched_at:
         return 0
 
-    age = (datetime.now(timezone.utc) - fetched_at).days
+    age = (datetime.now(UTC) - fetched_at).days
     if age <= 30:
         return 1
     if age <= 45:

@@ -1,7 +1,7 @@
-import requests
 import json
 import os
-import sys
+
+import requests
 
 # Define paths relative to the script
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

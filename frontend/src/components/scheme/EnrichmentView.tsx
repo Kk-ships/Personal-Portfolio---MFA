@@ -107,7 +107,7 @@ export function EnrichmentView({ amfiCode }: { amfiCode: string }) {
     };
 
     useEffect(() => {
-        // Only auto-fetch if we ALREADY have data cached/saved in the DB 
+        // Only auto-fetch if we ALREADY have data cached/saved in the DB
         // We will do a quick check to see if it exists
         const checkExisting = async () => {
             try {
@@ -968,4 +968,3 @@ export function EnrichmentView({ amfiCode }: { amfiCode: string }) {
         </div>
     );
 }
-

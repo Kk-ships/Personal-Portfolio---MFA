@@ -17,7 +17,7 @@ jobs:
     permissions:
       packages: write
       contents: read
-    
+
     strategy:
       matrix:
         package: ['mfa-frontend', 'mfa-backend']

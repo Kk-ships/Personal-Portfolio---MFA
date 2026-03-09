@@ -1,12 +1,12 @@
-import requests
 import logging
 from datetime import date
-from typing import Dict, Optional
+
+import requests
 
 logger = logging.getLogger(__name__)
 
 
-def fetch_historical_amfi_nav(target_date: date) -> Optional[Dict[str, float]]:
+def fetch_historical_amfi_nav(target_date: date) -> dict[str, float] | None:
     """
     Fetches the historical NAV from AMFI for a specific date.
     Returns a dictionary mapping AMFI Code to the NAV value for that date.

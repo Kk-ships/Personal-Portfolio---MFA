@@ -1,6 +1,5 @@
 import re
-from typing import List, Sequence
-
+from collections.abc import Sequence
 
 ISIN_REGEX = re.compile(r"^[A-Z0-9]{12}$")
 
@@ -26,7 +25,7 @@ def normalize_and_validate_isin(isin: str) -> str:
     return normalized
 
 
-def parse_and_validate_isin_csv(isin_csv: str, max_items: int = 50) -> List[str]:
+def parse_and_validate_isin_csv(isin_csv: str, max_items: int = 50) -> list[str]:
     """Parse comma-separated ISIN values and validate each item."""
     if not isinstance(isin_csv, str) or not isin_csv.strip():
         raise ValueError("At least one ISIN is required.")
@@ -34,7 +33,7 @@ def parse_and_validate_isin_csv(isin_csv: str, max_items: int = 50) -> List[str]
     return validate_isin_list([item.strip() for item in isin_csv.split(",")], max_items)
 
 
-def validate_isin_list(isins: Sequence[str], max_items: int = 50) -> List[str]:
+def validate_isin_list(isins: Sequence[str], max_items: int = 50) -> list[str]:
     """Validate a sequence of ISIN values and enforce maximum size."""
     if not isins:
         raise ValueError("At least one ISIN is required.")

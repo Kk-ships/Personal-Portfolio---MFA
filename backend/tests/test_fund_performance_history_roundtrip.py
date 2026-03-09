@@ -1,7 +1,7 @@
 import json
 import pathlib
 import sys
-from typing import Generator
+from collections.abc import Generator
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -51,25 +51,32 @@ def test_parser_serializes_latest_performance_history_fields() -> None:
     enrichment = parse_enrichment_response(scheme_id=1, data=payload)
 
     assert enrichment.performance is not None
-    assert json.loads(enrichment.performance.quarterly_performance) == payload[
-        "fund_performance_history"
-    ][-1]["quarterly_performance"]
-    assert json.loads(enrichment.performance.best_periods) == payload[
-        "fund_performance_history"
-    ][-1]["best_periods"]
-    assert json.loads(enrichment.performance.worst_periods) == payload[
-        "fund_performance_history"
-    ][-1]["worst_periods"]
-    assert json.loads(enrichment.performance.sip_returns) == payload[
-        "fund_performance_history"
-    ][-1]["sip_returns"]
-    assert json.loads(enrichment.performance.cagr_cat_avg) == payload[
-        "fund_performance_history"
-    ][-1]["cagr_metrics"]["cagr_cat_avg"]
+    assert (
+        json.loads(enrichment.performance.quarterly_performance)
+        == payload["fund_performance_history"][-1]["quarterly_performance"]
+    )
+    assert (
+        json.loads(enrichment.performance.best_periods)
+        == payload["fund_performance_history"][-1]["best_periods"]
+    )
+    assert (
+        json.loads(enrichment.performance.worst_periods)
+        == payload["fund_performance_history"][-1]["worst_periods"]
+    )
+    assert (
+        json.loads(enrichment.performance.sip_returns)
+        == payload["fund_performance_history"][-1]["sip_returns"]
+    )
+    assert (
+        json.loads(enrichment.performance.cagr_cat_avg)
+        == payload["fund_performance_history"][-1]["cagr_metrics"]["cagr_cat_avg"]
+    )
 
 
 def test_enrichment_endpoint_round_trip_performance_history(monkeypatch) -> None:
-    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    engine = create_engine(
+        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
     SQLModel.metadata.create_all(engine)
 
     with Session(engine) as session:
@@ -83,11 +90,13 @@ def test_enrichment_endpoint_round_trip_performance_history(monkeypatch) -> None
         session.add(scheme)
         session.commit()
 
-    def override_get_session() -> Generator[Session, None, None]:
+    def override_get_session() -> Generator[Session]:
         with Session(engine) as session:
             yield session
 
-    monkeypatch.setattr("app.api.scheme.fetch_fund_intelligence", lambda _isin: _sample_payload())
+    monkeypatch.setattr(
+        "app.api.scheme.fetch_fund_intelligence", lambda _isin: _sample_payload()
+    )
 
     app.dependency_overrides[get_session] = override_get_session
 
@@ -102,8 +111,13 @@ def test_enrichment_endpoint_round_trip_performance_history(monkeypatch) -> None
     perf = data["performance"]
     latest_hist = _sample_payload()["fund_performance_history"][-1]
 
-    assert json.loads(perf["quarterly_performance"]) == latest_hist["quarterly_performance"]
+    assert (
+        json.loads(perf["quarterly_performance"])
+        == latest_hist["quarterly_performance"]
+    )
     assert json.loads(perf["best_periods"]) == latest_hist["best_periods"]
     assert json.loads(perf["worst_periods"]) == latest_hist["worst_periods"]
     assert json.loads(perf["sip_returns"]) == latest_hist["sip_returns"]
-    assert json.loads(perf["cagr_cat_avg"]) == latest_hist["cagr_metrics"]["cagr_cat_avg"]
+    assert (
+        json.loads(perf["cagr_cat_avg"]) == latest_hist["cagr_metrics"]["cagr_cat_avg"]
+    )

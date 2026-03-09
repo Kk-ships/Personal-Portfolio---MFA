@@ -1,54 +1,62 @@
-import os
 import json
 import logging
+import os
+from datetime import UTC, datetime
+from datetime import date as dt_date
+from typing import Any
+
 import requests
-from datetime import datetime, date as dt_date, timezone
-from typing import Dict, Any, Optional
+from sqlmodel import Session, select
 
 from app.models.models import (
     FundEnrichment,
+    FundHolding,
+    FundManager,
+    FundPeer,
     FundPerformance,
     FundRiskMetrics,
-    FundHolding,
-    FundPeer,
-    FundManager,
     FundSector,
     Scheme,
 )
-from sqlmodel import Session, select
 from app.services.validation_engine import run_validations
 
 logger = logging.getLogger(__name__)
 
 DAAS_BASE_URL = "https://money-calc-gateway.ddpanda.workers.dev"
 
-_isin_to_name_cache: Optional[Dict[str, str]] = None
+_isin_to_name_cache: dict[str, str] | None = None
 
-def _get_name_from_navall(isin: str) -> Optional[str]:
+
+def _get_name_from_navall(isin: str) -> str | None:
     """Helper to lazy-load NAVAll.txt and extract the scheme name for an ISIN.
     Works inside docker (/data/) or running locally (backend/data/)."""
     global _isin_to_name_cache
     if _isin_to_name_cache is None:
         _isin_to_name_cache = {}
-        paths = ["/data/NAVAll.txt", "data/NAVAll.txt", "backend/data/NAVAll.txt", "../data/NAVAll.txt"]
+        paths = [
+            "/data/NAVAll.txt",
+            "data/NAVAll.txt",
+            "backend/data/NAVAll.txt",
+            "../data/NAVAll.txt",
+        ]
         nav_file = None
         for p in paths:
             if os.path.exists(p):
                 nav_file = p
                 break
-        
+
         if nav_file:
             try:
-                with open(nav_file, 'r', encoding='utf-8', errors='ignore') as f:
+                with open(nav_file, encoding="utf-8", errors="ignore") as f:
                     for line in f:
-                        parts = line.split(';')
+                        parts = line.split(";")
                         if len(parts) >= 4:
                             isin1 = parts[1].strip()
                             isin2 = parts[2].strip()
                             name = parts[3].strip()
-                            if isin1 and isin1 != '-':
+                            if isin1 and isin1 != "-":
                                 _isin_to_name_cache[isin1] = name
-                            if isin2 and isin2 != '-':
+                            if isin2 and isin2 != "-":
                                 _isin_to_name_cache[isin2] = name
             except Exception as e:
                 logger.error(f"Failed to load NAVAll cache: {e}")
@@ -56,7 +64,7 @@ def _get_name_from_navall(isin: str) -> Optional[str]:
     return _isin_to_name_cache.get(isin)
 
 
-def _safe_float(val) -> Optional[float]:
+def _safe_float(val) -> float | None:
     """Safely convert a value to float, returning None on failure."""
     if val is None:
         return None
@@ -66,7 +74,7 @@ def _safe_float(val) -> Optional[float]:
         return None
 
 
-def _safe_int(val) -> Optional[int]:
+def _safe_int(val) -> int | None:
     """Safely convert a value to int, returning None on failure."""
     if val is None:
         return None
@@ -76,7 +84,7 @@ def _safe_int(val) -> Optional[int]:
         return None
 
 
-def _safe_date(val) -> Optional[dt_date]:
+def _safe_date(val) -> dt_date | None:
     """Safely parse a YYYY-MM-DD string to date, returning None on failure."""
     if val is None:
         return None
@@ -100,7 +108,7 @@ class DaasAuthException(Exception):
     pass
 
 
-def fetch_fund_intelligence(isin: str) -> Optional[Dict[str, Any]]:
+def fetch_fund_intelligence(isin: str) -> dict[str, Any] | None:
     """
     Fetches raw fund intelligence data from the remote DaaS API.
     Raises DaasProcessingException on 503 HTTP status.
@@ -108,7 +116,9 @@ def fetch_fund_intelligence(isin: str) -> Optional[Dict[str, Any]]:
     """
     api_key = os.getenv("FUND_DAAS_API_KEY", "sk_test_123")
     if not api_key:
-        logger.error("FUND_DAAS_API_KEY environment variable is not set and no fallback available.")
+        logger.error(
+            "FUND_DAAS_API_KEY environment variable is not set and no fallback available."
+        )
         raise DaasAuthException("API key not configured.")
 
     url = f"{DAAS_BASE_URL}/api/v1/fund/pro/{isin}"
@@ -147,6 +157,7 @@ def fetch_fund_intelligence(isin: str) -> Optional[Dict[str, Any]]:
         logger.error(f"Network error fetching DaaS intelligence for {isin}: {e}")
         return None
 
+
 def trigger_bulk_daas_prefetch(isins: list[str]) -> None:
     """
     Fire-and-forget background task to queue ISINs for bulk pre-fetching.
@@ -168,22 +179,31 @@ def trigger_bulk_daas_prefetch(isins: list[str]) -> None:
 
     # 2. Chunk into batches of 50 (API Limit)
     chunk_size = 50
-    chunks = [unique_isins[i:i + chunk_size] for i in range(0, len(unique_isins), chunk_size)]
+    chunks = [
+        unique_isins[i : i + chunk_size]
+        for i in range(0, len(unique_isins), chunk_size)
+    ]
 
-    logger.info(f"Triggering DaaS bulk pre-fetch for {len(unique_isins)} ISINs in {len(chunks)} chunks.")
+    logger.info(
+        f"Triggering DaaS bulk pre-fetch for {len(unique_isins)} ISINs in {len(chunks)} chunks."
+    )
 
     for i, chunk in enumerate(chunks):
         chunk_str = ",".join(chunk)
         url = f"{DAAS_BASE_URL}/api/v1/fund/pro/{chunk_str}"
-        
+
         try:
             # We don't care about the response body, just firing the request.
             # Timeout is somewhat relaxed since it's a background task, but we don't want to hang forever
             res = requests.get(url, headers=headers, timeout=10)
             if res.status_code == 202:
-                logger.info(f"Successfully queued bulk chunk {i+1}/{len(chunks)} (202 Accepted).")
+                logger.info(
+                    f"Successfully queued bulk chunk {i+1}/{len(chunks)} (202 Accepted)."
+                )
             else:
-                 logger.warning(f"Bulk chunk {i+1} returned unexpected status {res.status_code}: {res.text}")
+                logger.warning(
+                    f"Bulk chunk {i+1} returned unexpected status {res.status_code}: {res.text}"
+                )
         except requests.exceptions.RequestException as e:
             logger.error(f"Network error queuing bulk DaaS chunk {i+1}: {e}")
             # Continue to next chunk instead of failing entirely
@@ -192,10 +212,10 @@ def trigger_bulk_daas_prefetch(isins: list[str]) -> None:
 
 def parse_enrichment_response(
     scheme_id: int,
-    data: Dict[str, Any],
-    mfa_nav: Optional[float] = None,
-    mfa_name: Optional[str] = None,
-    session: Optional[Session] = None,
+    data: dict[str, Any],
+    mfa_nav: float | None = None,
+    mfa_name: str | None = None,
+    session: Session | None = None,
 ) -> FundEnrichment:
     """
     Parses the DaaS JSON dictionary into the local SQLAlchemy models.
@@ -215,12 +235,10 @@ def parse_enrichment_response(
     enrichment = FundEnrichment(
         scheme_id=scheme_id,
         fund_name=data.get("fund_name", "Unknown Fund"),
-        fetched_at=datetime.now(timezone.utc),
-
+        fetched_at=datetime.now(UTC),
         # Identifiers
         code=data.get("code"),
         morningstar_id=data.get("morningstar_id"),
-
         # Fund metadata
         scheme_short_name=data.get("scheme_short_name"),
         category=data.get("category"),
@@ -236,13 +254,11 @@ def parse_enrichment_response(
         rating=data.get("rating"),
         objective=data.get("objective"),
         is_active=data.get("is_active"),
-
         # NAV snapshot
         latest_nav_api=_safe_float(data.get("latest_nav")),
         nav_change=_safe_float(data.get("nav_change")),
         nav_change_percent=_safe_float(data.get("nav_change_percent")),
         nav_date=_safe_date(data.get("nav_date")),
-
         # AUM & Cost
         aum_cr=_safe_float(data.get("aum_cr")),
         expense_ratio=_safe_float(data.get("expense_ratio")),
@@ -250,7 +266,6 @@ def parse_enrichment_response(
         turnover_ratio_cat_avg=_safe_float(data.get("turnover_ratio_cat_avg")),
         exit_load=data.get("exit_load"),
         lockin_period=data.get("lockin_period"),
-
         # Valuation Ratios
         pe=_safe_float(data.get("pe")),
         cat_avg_pe=_safe_float(data.get("cat_avg_pe")),
@@ -264,35 +279,29 @@ def parse_enrichment_response(
         cat_avg_dividend_yield=_safe_float(data.get("cat_avg_dividend_yield")),
         roe=_safe_float(data.get("roe")),
         cat_avg_roe=_safe_float(data.get("cat_avg_roe")),
-
         # Debt fund metrics
         yield_to_maturity=_safe_float(data.get("yield_to_maturity")),
         modified_duration=_safe_float(data.get("modified_duration")),
         avg_eff_maturity=_safe_float(data.get("avg_eff_maturity")),
         avg_credit_quality_name=data.get("avg_credit_quality_name"),
-
         # Asset Allocation
         equity_alloc=_safe_float(data.get("equity_alloc")),
         debt_alloc=_safe_float(data.get("debt_alloc")),
         cash_alloc=_safe_float(data.get("cash_alloc")),
         other_alloc=_safe_float(data.get("other_alloc")),
-
         # Cap-weight breakdown
         large_cap_wt=_safe_float(data.get("large_cap_wt")),
         mid_cap_wt=_safe_float(data.get("mid_cap_wt")),
         small_cap_wt=_safe_float(data.get("small_cap_wt")),
         others_cap_wt=_safe_float(data.get("others_cap_wt")),
-
         # Concentration metrics
         number_of_holdings=_safe_int(data.get("number_of_holdings")),
         avg_market_cap_cr=_safe_float(data.get("avg_market_cap_cr")),
         top_3_sectors_weight=_safe_float(data.get("top_3_sectors_weight")),
         top_5_stocks_weight=_safe_float(data.get("top_5_stocks_weight")),
         top_10_stocks_weight=_safe_float(data.get("top_10_stocks_weight")),
-
         # KBYI insights (stored as JSON text)
         kbyi=json.dumps(data.get("kbyi")) if data.get("kbyi") else None,
-
         # API calculation timestamp
         calculated_at=calculated_at_dt,
     )
@@ -336,19 +345,27 @@ def parse_enrichment_response(
 
         # Extract and store performance history fields as JSON strings
         if latest_hist.get("quarterly_performance"):
-            enrichment.performance.quarterly_performance = json.dumps(latest_hist["quarterly_performance"])
-        
+            enrichment.performance.quarterly_performance = json.dumps(
+                latest_hist["quarterly_performance"]
+            )
+
         if latest_hist.get("best_periods"):
-            enrichment.performance.best_periods = json.dumps(latest_hist["best_periods"])
-        
+            enrichment.performance.best_periods = json.dumps(
+                latest_hist["best_periods"]
+            )
+
         if latest_hist.get("worst_periods"):
-            enrichment.performance.worst_periods = json.dumps(latest_hist["worst_periods"])
-        
+            enrichment.performance.worst_periods = json.dumps(
+                latest_hist["worst_periods"]
+            )
+
         if latest_hist.get("sip_returns"):
             enrichment.performance.sip_returns = json.dumps(latest_hist["sip_returns"])
-        
+
         if cagr_metrics.get("cagr_cat_avg"):
-            enrichment.performance.cagr_cat_avg = json.dumps(cagr_metrics["cagr_cat_avg"])
+            enrichment.performance.cagr_cat_avg = json.dumps(
+                cagr_metrics["cagr_cat_avg"]
+            )
 
         # Parse Risk Metrics
         if latest_hist.get("risk_metrics"):

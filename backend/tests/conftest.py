@@ -1,8 +1,9 @@
 """
 Pytest configuration and shared fixtures for the test suite.
 """
+
 import pytest
-from sqlmodel import Session, create_engine, SQLModel
+from sqlmodel import SQLModel, create_engine
 from sqlmodel.pool import StaticPool
 
 

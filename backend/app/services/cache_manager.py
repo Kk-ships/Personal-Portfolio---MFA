@@ -1,15 +1,15 @@
 import logging
 from datetime import date, timedelta
-from sqlmodel import Session, select
-from typing import Optional
 
-from app.models.models import FundEnrichment
+from sqlmodel import Session, select
+
 from app.db.engine import engine
+from app.models.models import FundEnrichment
 
 logger = logging.getLogger(__name__)
 
 
-def should_purge(fetched_at: date, api_key_expiry: Optional[date] = None) -> bool:
+def should_purge(fetched_at: date, api_key_expiry: date | None = None) -> bool:
     """
     Determines if cached data should be hard-deleted based on the DB-PRD rules.
     """
@@ -33,7 +33,7 @@ def should_purge(fetched_at: date, api_key_expiry: Optional[date] = None) -> boo
     return False
 
 
-def purge_expired_enrichments(api_key_expiry: Optional[date] = None):
+def purge_expired_enrichments(api_key_expiry: date | None = None):
     """
     Scans the database and deletes expired FundEnrichment records.
     The cascade rules in models.py will auto-delete the child metrics.

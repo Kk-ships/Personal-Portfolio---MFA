@@ -1,5 +1,5 @@
-import os
 import json
+import os
 
 
 def generate_isin_map():
@@ -21,7 +21,7 @@ def generate_isin_map():
     isin_map = {}
 
     try:
-        with open(nav_file, "r", encoding="utf-8", errors="ignore") as f:
+        with open(nav_file, encoding="utf-8", errors="ignore") as f:
             for line in f:
                 parts = line.split(";")
                 if len(parts) < 6:

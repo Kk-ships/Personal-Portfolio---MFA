@@ -1,10 +1,12 @@
-import requests
-from sqlmodel import Session, select, or_, func
-from sqlalchemy.dialects.sqlite import insert
-from app.models.models import Scheme, NavHistory
-from datetime import datetime, date, timedelta
 import logging
 import time
+from datetime import date, datetime, timedelta
+
+import requests
+from sqlalchemy.dialects.sqlite import insert
+from sqlmodel import Session, func, or_, select
+
+from app.models.models import NavHistory, Scheme
 
 logger = logging.getLogger(__name__)
 

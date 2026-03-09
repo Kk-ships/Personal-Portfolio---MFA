@@ -7,7 +7,7 @@ Created 39 comprehensive test cases covering all API endpoints with unit, integr
 
 ### Core Test Files
 - **tests/test_endpoints.py** (39 tests) - Complete endpoint coverage
-- **tests/conftest.py** - Shared fixtures configuration  
+- **tests/conftest.py** - Shared fixtures configuration
 - **tests/README.md** - Comprehensive testing documentation
 - **pytest.ini** - Pytest configuration
 - **run_tests.sh** - Convenient test execution script
@@ -38,7 +38,7 @@ Created 39 comprehensive test cases covering all API endpoints with unit, integr
    - Sync status (no data, in progress, completed)
 
 5. **Schemes** (9 tests)
-   - Scheme details with transactions  
+   - Scheme details with transactions
    - NAV history retrieval
    - Backfill triggering
    - Fund enrichment data

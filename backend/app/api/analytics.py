@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, Header
-from sqlmodel import Session
-from app.db.engine import get_session
-from app.services.analytics import get_portfolio_summary
-from app.models.models import User
 from uuid import UUID
+
+from fastapi import APIRouter, Depends, Header, HTTPException
+from sqlmodel import Session
+
+from app.db.engine import get_session
+from app.models.models import User
+from app.services.analytics import get_portfolio_summary
 
 router = APIRouter()
 

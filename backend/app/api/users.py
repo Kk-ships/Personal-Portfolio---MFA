@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, Body
+import hashlib
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlmodel import Session, select
+
 from app.db.engine import get_session
 from app.models.models import User
-from typing import List, Optional
-from pydantic import BaseModel
-import hashlib
 
 router = APIRouter()
 
@@ -19,7 +20,7 @@ class PinRequest(BaseModel):
     pin: str
 
 
-@router.get("", response_model=List[UserRead])
+@router.get("", response_model=list[UserRead])
 async def list_users(session: Session = Depends(get_session)):
     """
     List all users with a flag indicating if they have a PIN set.

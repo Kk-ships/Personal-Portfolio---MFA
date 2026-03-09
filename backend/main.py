@@ -1,13 +1,14 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
+
+from app.api.analytics import router as analytics_router
 from app.api.cas import router as cas_router
 from app.api.nav import router as nav_router
-from app.api.analytics import router as analytics_router
-from app.api.users import router as users_router
-from app.api.status import router as status_router
-from app.db.engine import create_db_and_tables
 from app.api.scheme import router as scheme_router
+from app.api.status import router as status_router
+from app.api.users import router as users_router
 from app.core.logging_config import setup_logging
 
 # Initialize centralized logging

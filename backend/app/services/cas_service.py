@@ -1,17 +1,17 @@
-import casparser
 import io
-import os
-import tempfile
-import traceback
-import hashlib
-import re
 import json
+import os
+import re
+import tempfile
 from datetime import datetime
+from typing import Any
 from uuid import UUID
-from typing import Dict, Any, Optional
-from sqlmodel import Session, select
+
+import casparser
 from fastapi import HTTPException
-from app.models.models import User, Portfolio, Folio, Scheme, Transaction, AMC
+from sqlmodel import Session, select
+
+from app.models.models import AMC, Folio, Portfolio, Scheme, Transaction, User
 
 # Load ISIN Map
 ISIN_MAP = {}
@@ -27,7 +27,7 @@ if not os.path.exists(ISIN_MAP_PATH):
 
 try:
     if os.path.exists(ISIN_MAP_PATH):
-        with open(ISIN_MAP_PATH, "r") as f:
+        with open(ISIN_MAP_PATH) as f:
             ISIN_MAP = json.load(f)
     else:
         print(f"Warning: ISIN map not found at {ISIN_MAP_PATH}")
@@ -36,8 +36,8 @@ except Exception as e:
 
 
 def process_cas_data(
-    session: Session, content: bytes, password: str, x_user_id: Optional[str] = None
-) -> Dict[str, Any]:
+    session: Session, content: bytes, password: str, x_user_id: str | None = None
+) -> dict[str, Any]:
     """
     Parses CAS PDF content and saves data to the database.
     """
@@ -78,7 +78,8 @@ def process_cas_data(
         os.makedirs(schema_dump_dir, exist_ok=True)
 
         # Serialize datetime and decimal objects safely
-        from datetime import date as _date, datetime as _datetime
+        from datetime import date as _date
+        from datetime import datetime as _datetime
         from decimal import Decimal as _Decimal
 
         def _json_serial(obj):

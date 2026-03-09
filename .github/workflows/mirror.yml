@@ -21,7 +21,7 @@ jobs:
         with:
           fetch-depth: 0
           # CRITICAL: This prevents the local token from overriding your push token
-          persist-credentials: false 
+          persist-credentials: false
 
       - name: Push to Public Repo
         env:
@@ -30,6 +30,6 @@ jobs:
         run: |
           # Use the token explicitly in the URL
           git remote add public "https://x-access-token:${APP_TOKEN}@github.com/itsddpanda/${PUBLIC_REPO}.git"
-          
+
           # Force push to the public repo
           git push public main --force

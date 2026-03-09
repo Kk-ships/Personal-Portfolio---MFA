@@ -1,28 +1,20 @@
+import subprocess
+import traceback
+
 from fastapi import (
     APIRouter,
-    File,
-    UploadFile,
-    HTTPException,
+    BackgroundTasks,
     Body,
     Depends,
+    File,
     Header,
+    HTTPException,
     Request,
-    BackgroundTasks,
+    UploadFile,
 )
-from typing import Dict, Any, Optional
-from sqlmodel import Session, select
-from app.db.engine import get_session
-from app.models.models import User, Portfolio, Folio, Scheme, Transaction, AMC
-import casparser
-import io
-import traceback
-import tempfile
-import os
-from datetime import datetime
-from uuid import UUID
-import hashlib
-import subprocess
+from sqlmodel import Session
 
+from app.db.engine import get_session
 from app.services.cas_service import process_cas_data
 from app.services.nav import backfill_all_schemes
 
@@ -34,7 +26,7 @@ def trigger_background_sync():
     try:
         # Use python from the environment to run the sync script
         subprocess.Popen(["python", "/app/scripts/sync_amfi.py"])
-    except Exception as e:
+    except Exception:
         import traceback
 
         traceback.print_exc()
@@ -89,11 +81,12 @@ async def upload_cas(
         if result.get("status") == "success":
             background_tasks.add_task(trigger_background_sync)
             background_tasks.add_task(backfill_all_schemes)
-            
+
             # Fire-and-forget DaaS bulk pre-fetch for ISINs found in the CAS
             isins_to_prefetch = result.get("isins", [])
             if isins_to_prefetch:
                 from app.services.fund_intelligence import trigger_bulk_daas_prefetch
+
                 background_tasks.add_task(trigger_bulk_daas_prefetch, isins_to_prefetch)
 
         return result

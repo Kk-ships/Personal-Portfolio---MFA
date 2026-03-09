@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends
 from sqlmodel import Session
+
 from app.db.engine import get_session
 from app.models.models import SystemState
 

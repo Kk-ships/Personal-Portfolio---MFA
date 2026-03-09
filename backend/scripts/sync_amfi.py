@@ -1,19 +1,17 @@
-import sys
-import os
-import requests
 import datetime
-from datetime import timezone
 import logging
-from sqlmodel import Session
-from sqlmodel import select
+import os
+import sys
 
+import requests
+from sqlmodel import Session, select
 
 # Add the parent directory to the python path so we can import 'app'
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 # This is supposed to be here
-from app.db.engine import get_session, engine
-from app.models.models import Scheme, NavHistory, SystemState
+from app.db.engine import engine
+from app.models.models import NavHistory, Scheme, SystemState
 
 log_level_str = os.getenv("LOG_LEVEL", "INFO").upper()
 log_level = getattr(logging, log_level_str, logging.INFO)
@@ -50,7 +48,9 @@ def _count_valid_navs(text: str) -> int:
     return count
 
 
-def validate_amfi_payload(text: str, isin_map_path: str | None = None) -> tuple[bool, str]:
+def validate_amfi_payload(
+    text: str, isin_map_path: str | None = None
+) -> tuple[bool, str]:
     """
     Validate a raw AMFI NAVAll payload.
     Returns (is_valid, reason_string).
@@ -67,6 +67,7 @@ def validate_amfi_payload(text: str, isin_map_path: str | None = None) -> tuple[
     if isin_map_path and os.path.exists(isin_map_path):
         try:
             import json
+
             with open(isin_map_path) as f:
                 isin_map = json.load(f)
             expected = len(isin_map)
@@ -93,17 +94,18 @@ def update_status(session: Session, status: str):
         state = SystemState(key="nav_sync_status", value=status)
     else:
         state.value = status
-        state.updated_at = datetime.datetime.now(timezone.utc)
+        state.updated_at = datetime.datetime.now(datetime.UTC)
     session.add(state)
 
     last_run = session.get(SystemState, "nav_sync_last_run")
     if not last_run:
         last_run = SystemState(
-            key="nav_sync_last_run", value=datetime.datetime.now(timezone.utc).isoformat()
+            key="nav_sync_last_run",
+            value=datetime.datetime.now(datetime.UTC).isoformat(),
         )
     else:
-        last_run.value = datetime.datetime.now(timezone.utc).isoformat()
-        last_run.updated_at = datetime.datetime.now(timezone.utc)
+        last_run.value = datetime.datetime.now(datetime.UTC).isoformat()
+        last_run.updated_at = datetime.datetime.now(datetime.UTC)
     session.add(last_run)
 
     session.commit()
@@ -125,9 +127,9 @@ def run_sync():
             if os.path.exists(amfi_file_path):
                 try:
                     file_mtime = datetime.datetime.fromtimestamp(
-                        os.path.getmtime(amfi_file_path), tz=timezone.utc
+                        os.path.getmtime(amfi_file_path), tz=datetime.UTC
                     )
-                    time_since_file = datetime.datetime.now(timezone.utc) - file_mtime
+                    time_since_file = datetime.datetime.now(datetime.UTC) - file_mtime
                     logger.debug(
                         f"Cache file age: {time_since_file.total_seconds() / 3600:.1f} hours"
                     )
@@ -145,7 +147,9 @@ def run_sync():
             isin_map_path = (
                 "/data/isin_amfi_map.json"
                 if os.path.exists("/data")
-                else os.path.join(os.path.dirname(__file__), "..", "data", "isin_amfi_map.json")
+                else os.path.join(
+                    os.path.dirname(__file__), "..", "data", "isin_amfi_map.json"
+                )
             )
 
             if not use_cache:
@@ -174,10 +178,12 @@ def run_sync():
                     )
                     if os.path.exists(amfi_file_path):
                         logger.info(f"Loading fallback NAV data from {amfi_file_path}")
-                        with open(amfi_file_path, "r") as f:
+                        with open(amfi_file_path) as f:
                             payload_text = f.read()
                         # Validate the fallback too
-                        fb_valid, fb_reason = validate_amfi_payload(payload_text, isin_map_path)
+                        fb_valid, fb_reason = validate_amfi_payload(
+                            payload_text, isin_map_path
+                        )
                         if not fb_valid:
                             raise RuntimeError(
                                 f"Fallback cache is also invalid: {fb_reason}"
@@ -189,7 +195,7 @@ def run_sync():
                         )
             else:
                 logger.info(f"Loading NAV data from disk cache at {amfi_file_path}")
-                with open(amfi_file_path, "r") as f:
+                with open(amfi_file_path) as f:
                     payload_text = f.read()
                 # Validate cached file too (catches a corrupt manual placement)
                 is_valid, reason = validate_amfi_payload(payload_text, isin_map_path)
@@ -203,7 +209,9 @@ def run_sync():
                     payload_text = response.text
                     fv, fr = validate_amfi_payload(payload_text, isin_map_path)
                     if not fv:
-                        raise RuntimeError(f"Fresh payload also invalid after cache miss: {fr}")
+                        raise RuntimeError(
+                            f"Fresh payload also invalid after cache miss: {fr}"
+                        )
                     logger.info(f"Fresh payload validated OK: {fr}")
                     try:
                         os.makedirs(os.path.dirname(amfi_file_path), exist_ok=True)

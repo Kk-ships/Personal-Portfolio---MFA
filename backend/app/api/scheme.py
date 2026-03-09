@@ -1,47 +1,53 @@
-from fastapi import APIRouter, Depends, HTTPException, Header
-from sqlmodel import Session, select
-from app.db.engine import get_session
-from app.models.models import Scheme, Transaction, NavHistory, Folio, Portfolio
-from app.services.mfapi_client import (
-    fetch_scheme_data,
-    extract_metadata,
-    extract_nav_history,
-)
-from uuid import UUID
-from typing import List, Dict, Any, Optional
-from pyxirr import xirr
-from datetime import date
 import json
 import os
+from datetime import date
+from uuid import UUID
 
-from app.models.models import FundEnrichment
+from fastapi import APIRouter, Depends, Header, HTTPException
+from pyxirr import xirr
+from sqlmodel import Session, select
+
+from app.db.engine import get_session
+from app.models.models import (
+    Folio,
+    FundEnrichment,
+    NavHistory,
+    Portfolio,
+    Scheme,
+    Transaction,
+)
+from app.services.cache_manager import should_purge
 from app.services.fund_intelligence import (
+    DaasAuthException,
+    DaasProcessingException,
     fetch_fund_intelligence,
     parse_enrichment_response,
-    DaasProcessingException,
-    DaasAuthException,
 )
 from app.services.interfaces.fund_intel import get_enrichment_for_scheme
-from app.services.cache_manager import should_purge
+from app.services.mfapi_client import (
+    extract_metadata,
+    extract_nav_history,
+    fetch_scheme_data,
+)
 
 router = APIRouter()
 
 
-def get_amfi_code_from_isin(isin: str) -> Optional[str]:
+def get_amfi_code_from_isin(isin: str) -> str | None:
     """Look up AMFI code from ISIN using the generated map file"""
     base_data_dir = os.getenv("DATA_DIR", "/data")
     if not os.path.exists(base_data_dir):
         base_data_dir = os.path.abspath(
             os.path.join(os.path.dirname(__file__), "..", "..", "data")
         )
-    
+
     map_file = os.path.join(base_data_dir, "isin_amfi_map.json")
-    
+
     if not os.path.exists(map_file):
         return None
-    
+
     try:
-        with open(map_file, "r") as f:
+        with open(map_file) as f:
             isin_map = json.load(f)
             return isin_map.get(isin)
     except Exception:
@@ -56,7 +62,7 @@ def get_scheme_by_isin(isin: str):
     amfi_code = get_amfi_code_from_isin(isin)
     if not amfi_code:
         raise HTTPException(status_code=404, detail="AMFI code not found for this ISIN")
-    
+
     return {"isin": isin, "amfi_code": amfi_code}
 
 
@@ -314,27 +320,35 @@ def get_scheme_enrichment(
         # Try to create the scheme on-demand by fetching from MFAPI
         mfapi_data = fetch_scheme_data(amfi_code)
         if not mfapi_data:
-            raise HTTPException(status_code=404, detail="Scheme not found in AMFI records")
-        
+            raise HTTPException(
+                status_code=404, detail="Scheme not found in AMFI records"
+            )
+
         # Extract metadata and create scheme
         meta = extract_metadata(mfapi_data)
-        
+
         # Derive type from category
         category = meta.get("scheme_category", "").upper()
         if "EQUITY" in category or "ELSS" in category:
             scheme_type = "EQUITY"
         elif "DEBT" in category or "GILT" in category or "LIQUID" in category:
             scheme_type = "DEBT"
-        elif "HYBRID" in category or "BALANCED" in category or "MULTI ASSET" in category:
+        elif (
+            "HYBRID" in category or "BALANCED" in category or "MULTI ASSET" in category
+        ):
             scheme_type = "HYBRID"
         elif "SOLUTION" in category or "RETIREMENT" in category:
             scheme_type = "SOLUTION"
-        elif "OTHER" in category or "FUND OF FUNDS" in category or "FoF" in category.replace(" ", ""):
+        elif (
+            "OTHER" in category
+            or "FUND OF FUNDS" in category
+            or "FoF" in category.replace(" ", "")
+        ):
             scheme_type = "OTHER"
         else:
             # Default fallback
             scheme_type = "OTHER"
-        
+
         scheme = Scheme(
             amfi_code=amfi_code,
             name=meta.get("scheme_name", f"Scheme {amfi_code}"),
@@ -344,7 +358,7 @@ def get_scheme_enrichment(
             scheme_category=meta.get("scheme_category"),
             scheme_type=meta.get("scheme_type"),
         )
-        
+
         # Get latest NAV from data
         data_points = mfapi_data.get("data", [])
         if data_points and isinstance(data_points, list):
@@ -355,10 +369,13 @@ def get_scheme_enrichment(
                 date_str = latest.get("date")
                 if date_str:
                     from datetime import datetime
-                    scheme.latest_nav_date = datetime.strptime(date_str, "%d-%m-%Y").date()
+
+                    scheme.latest_nav_date = datetime.strptime(
+                        date_str, "%d-%m-%Y"
+                    ).date()
             except (ValueError, TypeError):
                 pass
-        
+
         session.add(scheme)
         session.commit()
         session.refresh(scheme)
@@ -373,7 +390,7 @@ def get_scheme_enrichment(
     enrichment = session.exec(
         select(FundEnrichment).where(FundEnrichment.scheme_id == scheme_id)
     ).first()
-    
+
     if enrichment:
         if force or should_purge(enrichment.fetched_at.date()):
             # Cache expired or forced refresh, delete it and we'll fetch a new one
@@ -384,7 +401,7 @@ def get_scheme_enrichment(
             _ = enrichment.sectors
             _ = enrichment.peers
             _ = enrichment.managers
-            
+
             session.delete(enrichment)
             session.commit()
             # Clear session to avoid stale references
@@ -419,7 +436,7 @@ def get_scheme_enrichment(
                 detail={"status": "processing", "message": str(e)},
                 headers={"Retry-After": str(e.retry_after)},
             )
-        except DaasAuthException as e:
+        except DaasAuthException:
             raise HTTPException(
                 status_code=500, detail="Intelligence API configuration error."
             )

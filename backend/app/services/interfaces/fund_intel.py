@@ -1,110 +1,106 @@
+from datetime import date as dt_date
+from datetime import datetime
+
 from pydantic import BaseModel
-from typing import Optional, List
-from datetime import datetime, date as dt_date
 from sqlmodel import Session, select
+
 from app.models.models import (
     FundEnrichment,
-    FundPerformance,
-    FundRiskMetrics,
-    FundHolding,
-    FundSector,
-    FundPeer,
-    FundManager,
 )
 
 
 class PerformanceDTO(BaseModel):
-    returns_1y: Optional[float] = None
-    returns_3y: Optional[float] = None
-    returns_5y: Optional[float] = None
-    returns_tooltip: Optional[str] = None
-    cagr_1y: Optional[float] = None
-    cagr_3y: Optional[float] = None
-    cagr_5y: Optional[float] = None
-    cagr_10y: Optional[float] = None
-    cagr_tooltip: Optional[str] = None
-    cagr_rank_1y: Optional[int] = None
-    cagr_rank_3y: Optional[int] = None
-    cagr_rank_5y: Optional[int] = None
-    cagr_rank_10y: Optional[int] = None
-    recorded_at: Optional[dt_date] = None
-    
+    returns_1y: float | None = None
+    returns_3y: float | None = None
+    returns_5y: float | None = None
+    returns_tooltip: str | None = None
+    cagr_1y: float | None = None
+    cagr_3y: float | None = None
+    cagr_5y: float | None = None
+    cagr_10y: float | None = None
+    cagr_tooltip: str | None = None
+    cagr_rank_1y: int | None = None
+    cagr_rank_3y: int | None = None
+    cagr_rank_5y: int | None = None
+    cagr_rank_10y: int | None = None
+    recorded_at: dt_date | None = None
+
     # Performance history fields (stored as JSON strings)
-    quarterly_performance: Optional[str] = None
-    best_periods: Optional[str] = None
-    worst_periods: Optional[str] = None
-    sip_returns: Optional[str] = None
-    cagr_cat_avg: Optional[str] = None
+    quarterly_performance: str | None = None
+    best_periods: str | None = None
+    worst_periods: str | None = None
+    sip_returns: str | None = None
+    cagr_cat_avg: str | None = None
 
 
 class RiskMetricsDTO(BaseModel):
-    cat_avg_1y: Optional[float] = None
-    cat_avg_3y: Optional[float] = None
-    cat_avg_5y: Optional[float] = None
-    cat_min_1y: Optional[float] = None
-    cat_max_1y: Optional[float] = None
-    cat_max_3y: Optional[float] = None
-    sharpe_ratio_1y: Optional[float] = None
-    sharpe_ratio_3y: Optional[float] = None
-    sharpe_ratio_5y: Optional[float] = None
-    sharpe_ratio_tooltip: Optional[str] = None
-    sortino_ratio_1y: Optional[float] = None
-    sortino_ratio_3y: Optional[float] = None
-    sortino_ratio_5y: Optional[float] = None
-    sortino_ratio_tooltip: Optional[str] = None
-    risk_std_dev_1y: Optional[float] = None
-    risk_std_dev_3y: Optional[float] = None
-    risk_std_dev_5y: Optional[float] = None
-    risk_std_dev_tooltip: Optional[str] = None
-    beta_1y: Optional[float] = None
-    beta_3y: Optional[float] = None
-    beta_5y: Optional[float] = None
-    beta_tooltip: Optional[str] = None
+    cat_avg_1y: float | None = None
+    cat_avg_3y: float | None = None
+    cat_avg_5y: float | None = None
+    cat_min_1y: float | None = None
+    cat_max_1y: float | None = None
+    cat_max_3y: float | None = None
+    sharpe_ratio_1y: float | None = None
+    sharpe_ratio_3y: float | None = None
+    sharpe_ratio_5y: float | None = None
+    sharpe_ratio_tooltip: str | None = None
+    sortino_ratio_1y: float | None = None
+    sortino_ratio_3y: float | None = None
+    sortino_ratio_5y: float | None = None
+    sortino_ratio_tooltip: str | None = None
+    risk_std_dev_1y: float | None = None
+    risk_std_dev_3y: float | None = None
+    risk_std_dev_5y: float | None = None
+    risk_std_dev_tooltip: str | None = None
+    beta_1y: float | None = None
+    beta_3y: float | None = None
+    beta_5y: float | None = None
+    beta_tooltip: str | None = None
 
 
 class HoldingDTO(BaseModel):
-    stock_name: Optional[str] = None
-    sector: Optional[str] = None
-    weighting: Optional[float] = None
-    market_value: Optional[float] = None
-    change_1m: Optional[float] = None
-    holdings_history: Optional[str] = None  # JSON text
+    stock_name: str | None = None
+    sector: str | None = None
+    weighting: float | None = None
+    market_value: float | None = None
+    change_1m: float | None = None
+    holdings_history: str | None = None  # JSON text
 
 
 class SectorDTO(BaseModel):
-    sector_name: Optional[str] = None
-    weighting: Optional[float] = None
-    market_value: Optional[float] = None
-    change_1m: Optional[float] = None
+    sector_name: str | None = None
+    weighting: float | None = None
+    market_value: float | None = None
+    change_1m: float | None = None
 
 
 class PeerDTO(BaseModel):
-    fund_name: Optional[str] = None
-    peer_isin: Optional[str] = None
-    peer_amfi_code: Optional[str] = None
-    cagr_1y: Optional[float] = None
-    cagr_3y: Optional[float] = None
-    cagr_5y: Optional[float] = None
-    cagr_10y: Optional[float] = None
-    yield_to_maturity: Optional[float] = None
-    modified_duration: Optional[float] = None
-    avg_eff_maturity: Optional[float] = None
-    expense_ratio: Optional[float] = None
-    portfolio_turnover: Optional[float] = None
-    std_deviation: Optional[float] = None
+    fund_name: str | None = None
+    peer_isin: str | None = None
+    peer_amfi_code: str | None = None
+    cagr_1y: float | None = None
+    cagr_3y: float | None = None
+    cagr_5y: float | None = None
+    cagr_10y: float | None = None
+    yield_to_maturity: float | None = None
+    modified_duration: float | None = None
+    avg_eff_maturity: float | None = None
+    expense_ratio: float | None = None
+    portfolio_turnover: float | None = None
+    std_deviation: float | None = None
 
 
 class ManagerDTO(BaseModel):
-    manager_name: Optional[str] = None
-    role: Optional[str] = None
-    start_date: Optional[dt_date] = None
-    end_date: Optional[dt_date] = None
+    manager_name: str | None = None
+    role: str | None = None
+    start_date: dt_date | None = None
+    end_date: dt_date | None = None
 
 
 class EnrichmentDTO(BaseModel):
     id: int
     scheme_id: int
-    fund_name: Optional[str] = None
+    fund_name: str | None = None
     fetched_at: datetime
     validation_status: int
     nav_validation_status: int
@@ -112,96 +108,94 @@ class EnrichmentDTO(BaseModel):
     freshness_status: int
 
     # Identifiers
-    code: Optional[str] = None
-    morningstar_id: Optional[str] = None
+    code: str | None = None
+    morningstar_id: str | None = None
 
     # Fund metadata
-    scheme_short_name: Optional[str] = None
-    category: Optional[str] = None
-    sub_category: Optional[str] = None
-    fund_type: Optional[str] = None
-    plan_name: Optional[str] = None
-    option_name: Optional[str] = None
-    payout_freq: Optional[str] = None
-    inception_date: Optional[dt_date] = None
-    benchmark: Optional[str] = None
-    riskometer: Optional[str] = None
-    investment_style: Optional[str] = None
-    rating: Optional[str] = None
-    objective: Optional[str] = None
-    is_active: Optional[bool] = None
+    scheme_short_name: str | None = None
+    category: str | None = None
+    sub_category: str | None = None
+    fund_type: str | None = None
+    plan_name: str | None = None
+    option_name: str | None = None
+    payout_freq: str | None = None
+    inception_date: dt_date | None = None
+    benchmark: str | None = None
+    riskometer: str | None = None
+    investment_style: str | None = None
+    rating: str | None = None
+    objective: str | None = None
+    is_active: bool | None = None
 
     # NAV snapshot
-    latest_nav_api: Optional[float] = None
-    nav_change: Optional[float] = None
-    nav_change_percent: Optional[float] = None
-    nav_date: Optional[dt_date] = None
+    latest_nav_api: float | None = None
+    nav_change: float | None = None
+    nav_change_percent: float | None = None
+    nav_date: dt_date | None = None
 
     # AUM & Cost
-    aum_cr: Optional[float] = None
-    expense_ratio: Optional[float] = None
-    turnover_ratio: Optional[float] = None
-    turnover_ratio_cat_avg: Optional[float] = None
-    exit_load: Optional[str] = None
-    lockin_period: Optional[str] = None
+    aum_cr: float | None = None
+    expense_ratio: float | None = None
+    turnover_ratio: float | None = None
+    turnover_ratio_cat_avg: float | None = None
+    exit_load: str | None = None
+    lockin_period: str | None = None
 
     # Valuation Ratios
-    pe: Optional[float] = None
-    cat_avg_pe: Optional[float] = None
-    pb: Optional[float] = None
-    cat_avg_pb: Optional[float] = None
-    price_sale: Optional[float] = None
-    cat_avg_price_sale: Optional[float] = None
-    price_cash_flow: Optional[float] = None
-    cat_avg_price_cash_flow: Optional[float] = None
-    dividend_yield: Optional[float] = None
-    cat_avg_dividend_yield: Optional[float] = None
-    roe: Optional[float] = None
-    cat_avg_roe: Optional[float] = None
+    pe: float | None = None
+    cat_avg_pe: float | None = None
+    pb: float | None = None
+    cat_avg_pb: float | None = None
+    price_sale: float | None = None
+    cat_avg_price_sale: float | None = None
+    price_cash_flow: float | None = None
+    cat_avg_price_cash_flow: float | None = None
+    dividend_yield: float | None = None
+    cat_avg_dividend_yield: float | None = None
+    roe: float | None = None
+    cat_avg_roe: float | None = None
 
     # Debt fund metrics
-    yield_to_maturity: Optional[float] = None
-    modified_duration: Optional[float] = None
-    avg_eff_maturity: Optional[float] = None
-    avg_credit_quality_name: Optional[str] = None
+    yield_to_maturity: float | None = None
+    modified_duration: float | None = None
+    avg_eff_maturity: float | None = None
+    avg_credit_quality_name: str | None = None
 
     # Asset Allocation
-    equity_alloc: Optional[float] = None
-    debt_alloc: Optional[float] = None
-    cash_alloc: Optional[float] = None
-    other_alloc: Optional[float] = None
+    equity_alloc: float | None = None
+    debt_alloc: float | None = None
+    cash_alloc: float | None = None
+    other_alloc: float | None = None
 
     # Cap-weight breakdown
-    large_cap_wt: Optional[float] = None
-    mid_cap_wt: Optional[float] = None
-    small_cap_wt: Optional[float] = None
-    others_cap_wt: Optional[float] = None
+    large_cap_wt: float | None = None
+    mid_cap_wt: float | None = None
+    small_cap_wt: float | None = None
+    others_cap_wt: float | None = None
 
     # Concentration metrics
-    number_of_holdings: Optional[int] = None
-    avg_market_cap_cr: Optional[float] = None
-    top_3_sectors_weight: Optional[float] = None
-    top_5_stocks_weight: Optional[float] = None
-    top_10_stocks_weight: Optional[float] = None
+    number_of_holdings: int | None = None
+    avg_market_cap_cr: float | None = None
+    top_3_sectors_weight: float | None = None
+    top_5_stocks_weight: float | None = None
+    top_10_stocks_weight: float | None = None
 
     # KBYI insights (JSON text)
-    kbyi: Optional[str] = None
+    kbyi: str | None = None
 
     # API calculation timestamp
-    calculated_at: Optional[datetime] = None
+    calculated_at: datetime | None = None
 
     # Relationships
-    performance: Optional[PerformanceDTO] = None
-    risk_metrics: Optional[RiskMetricsDTO] = None
-    holdings: List[HoldingDTO] = []
-    sectors: List[SectorDTO] = []
-    peers: List[PeerDTO] = []
-    managers: List[ManagerDTO] = []
+    performance: PerformanceDTO | None = None
+    risk_metrics: RiskMetricsDTO | None = None
+    holdings: list[HoldingDTO] = []
+    sectors: list[SectorDTO] = []
+    peers: list[PeerDTO] = []
+    managers: list[ManagerDTO] = []
 
 
-def get_enrichment_for_scheme(
-    session: Session, scheme_id: int
-) -> Optional[EnrichmentDTO]:
+def get_enrichment_for_scheme(session: Session, scheme_id: int) -> EnrichmentDTO | None:
     enrichment = session.exec(
         select(FundEnrichment).where(FundEnrichment.scheme_id == scheme_id)
     ).first()

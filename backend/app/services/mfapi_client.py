@@ -1,14 +1,15 @@
-import requests
 import logging
-from datetime import datetime, date
-from typing import List, Tuple, Dict, Any, Optional
+from datetime import date, datetime
+from typing import Any
+
+import requests
 
 logger = logging.getLogger(__name__)
 
 MFAPI_BASE_URL = "https://api.mfapi.in/mf"
 
 
-def fetch_scheme_data(amfi_code: str) -> Optional[Dict[str, Any]]:
+def fetch_scheme_data(amfi_code: str) -> dict[str, Any] | None:
     """
     Fetches the full scheme data including metadata and historical NAVs from mfapi.in.
     Returns the parsed JSON dictionary or None if failed.
@@ -37,7 +38,7 @@ def fetch_scheme_data(amfi_code: str) -> Optional[Dict[str, Any]]:
     return None
 
 
-def extract_metadata(data: Dict[str, Any]) -> Dict[str, str]:
+def extract_metadata(data: dict[str, Any]) -> dict[str, str]:
     """
     Extracts relevant metadata from the MFAPI response.
     """
@@ -53,7 +54,7 @@ def extract_metadata(data: Dict[str, Any]) -> Dict[str, str]:
     }
 
 
-def extract_nav_history(data: Dict[str, Any]) -> List[Tuple[date, float]]:
+def extract_nav_history(data: dict[str, Any]) -> list[tuple[date, float]]:
     """
     Extracts the chronological NAV history from the MFAPI response.
     Returns a list of tuples: [(date_obj, nav_float), ...] sorted oldest to newest.
@@ -67,7 +68,7 @@ def extract_nav_history(data: Dict[str, Any]) -> List[Tuple[date, float]]:
             nav_val = float(entry.get("nav"))
             date_obj = datetime.strptime(date_str, "%d-%m-%Y").date()
             history.append((date_obj, nav_val))
-        except (ValueError, TypeError) as e:
+        except (ValueError, TypeError):
             # Skip invalid entries
             continue
 
@@ -76,7 +77,7 @@ def extract_nav_history(data: Dict[str, Any]) -> List[Tuple[date, float]]:
     return history
 
 
-def fetch_amfi_date_nav(amfi_code: str, target_date: date) -> Optional[float]:
+def fetch_amfi_date_nav(amfi_code: str, target_date: date) -> float | None:
     """
     Scrapes the AMFI portal for a specific date's NAV for a specific scheme.
     Highly optimized for single-day gap filling without downloading 10-year history.

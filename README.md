@@ -61,7 +61,7 @@ docker compose up -d --build
 | Backend | `ghcr.io/itsddpanda/mfa-backend:latest` |
 | Frontend | `ghcr.io/itsddpanda/mfa-frontend:latest` |
 
-The backend API is available at `http://localhost:8001/api`.  
+The backend API is available at `http://localhost:8001/api`.
 API docs (Swagger UI) at `http://localhost:8001/docs`.
 
 ---

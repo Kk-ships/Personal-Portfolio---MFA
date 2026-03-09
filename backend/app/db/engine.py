@@ -1,7 +1,8 @@
 import os
-from typing import Generator
+from collections.abc import Generator
+
 from dotenv import load_dotenv
-from sqlmodel import create_engine, SQLModel, Session
+from sqlmodel import Session, SQLModel, create_engine
 
 load_dotenv()
 
@@ -13,11 +14,9 @@ engine = create_engine(sqlite_url, connect_args=connect_args)
 
 
 def create_db_and_tables():
-    from app.models import models
-
     SQLModel.metadata.create_all(engine)
 
 
-def get_session() -> Generator[Session, None, None]:
+def get_session() -> Generator[Session]:
     with Session(engine) as session:
         yield session

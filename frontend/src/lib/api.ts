@@ -119,3 +119,16 @@ export async function getSchemeEnrichment(amfiCode: string, force: boolean = fal
 
     return res.json();
 }
+
+export async function getAmfiCodeFromIsin(isin: string): Promise<string | null> {
+    try {
+        const res = await fetch(`${API_BASE}/scheme/by-isin/${isin}`);
+        if (!res.ok) {
+            return null;
+        }
+        const data = await res.json();
+        return data.amfi_code;
+    } catch {
+        return null;
+    }
+}

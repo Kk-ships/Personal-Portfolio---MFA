@@ -571,6 +571,7 @@ def parse_enrichment_response(
 
         peer_name = p.get("peer_name") or p.get("fund_name")
         peer_isin = p.get("peer_isin")
+        peer_amfi_code = None
 
         if not peer_name and peer_isin:
             # 1. Try local NAVAll file first
@@ -584,6 +585,15 @@ def parse_enrichment_response(
                 ).first()
                 if local_scheme:
                     peer_name = local_scheme.name
+                    peer_amfi_code = local_scheme.amfi_code
+
+        # Even if we found the name via NAVAll, try to get amfi_code from Scheme table
+        if peer_isin and not peer_amfi_code and session:
+            local_scheme = session.exec(
+                select(Scheme).where(Scheme.isin == peer_isin)
+            ).first()
+            if local_scheme:
+                peer_amfi_code = local_scheme.amfi_code
 
         if not peer_name:
             peer_name = "Unknown Peer"
@@ -592,6 +602,7 @@ def parse_enrichment_response(
             FundPeer(
                 fund_name=peer_name,
                 peer_isin=peer_isin,
+                peer_amfi_code=peer_amfi_code,
                 cagr_1y=_safe_float(p.get("cagr_1y")),
                 cagr_3y=_safe_float(p.get("cagr_3y")),
                 cagr_5y=_safe_float(p.get("cagr_5y")),

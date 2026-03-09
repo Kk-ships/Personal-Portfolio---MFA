@@ -8,9 +8,11 @@ from app.services.mfapi_client import (
     extract_nav_history,
 )
 from uuid import UUID
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from pyxirr import xirr
 from datetime import date
+import json
+import os
 
 from app.models.models import FundEnrichment
 from app.services.fund_intelligence import (
@@ -23,6 +25,39 @@ from app.services.interfaces.fund_intel import get_enrichment_for_scheme
 from app.services.cache_manager import should_purge
 
 router = APIRouter()
+
+
+def get_amfi_code_from_isin(isin: str) -> Optional[str]:
+    """Look up AMFI code from ISIN using the generated map file"""
+    base_data_dir = os.getenv("DATA_DIR", "/data")
+    if not os.path.exists(base_data_dir):
+        base_data_dir = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "..", "data")
+        )
+    
+    map_file = os.path.join(base_data_dir, "isin_amfi_map.json")
+    
+    if not os.path.exists(map_file):
+        return None
+    
+    try:
+        with open(map_file, "r") as f:
+            isin_map = json.load(f)
+            return isin_map.get(isin)
+    except Exception:
+        return None
+
+
+@router.get("/by-isin/{isin}")
+def get_scheme_by_isin(isin: str):
+    """
+    Look up scheme AMFI code by ISIN. Returns the AMFI code for the frontend to navigate.
+    """
+    amfi_code = get_amfi_code_from_isin(isin)
+    if not amfi_code:
+        raise HTTPException(status_code=404, detail="AMFI code not found for this ISIN")
+    
+    return {"isin": isin, "amfi_code": amfi_code}
 
 
 @router.get("/{amfi_code}")
@@ -276,34 +311,100 @@ def get_scheme_enrichment(
     """
     scheme = session.exec(select(Scheme).where(Scheme.amfi_code == amfi_code)).first()
     if not scheme:
-        raise HTTPException(status_code=404, detail="Scheme not found")
+        # Try to create the scheme on-demand by fetching from MFAPI
+        mfapi_data = fetch_scheme_data(amfi_code)
+        if not mfapi_data:
+            raise HTTPException(status_code=404, detail="Scheme not found in AMFI records")
+        
+        # Extract metadata and create scheme
+        meta = extract_metadata(mfapi_data)
+        
+        # Derive type from category
+        category = meta.get("scheme_category", "").upper()
+        if "EQUITY" in category or "ELSS" in category:
+            scheme_type = "EQUITY"
+        elif "DEBT" in category or "GILT" in category or "LIQUID" in category:
+            scheme_type = "DEBT"
+        elif "HYBRID" in category or "BALANCED" in category or "MULTI ASSET" in category:
+            scheme_type = "HYBRID"
+        elif "SOLUTION" in category or "RETIREMENT" in category:
+            scheme_type = "SOLUTION"
+        elif "OTHER" in category or "FUND OF FUNDS" in category or "FoF" in category.replace(" ", ""):
+            scheme_type = "OTHER"
+        else:
+            # Default fallback
+            scheme_type = "OTHER"
+        
+        scheme = Scheme(
+            amfi_code=amfi_code,
+            name=meta.get("scheme_name", f"Scheme {amfi_code}"),
+            isin=meta.get("isin", ""),
+            type=scheme_type,
+            fund_house=meta.get("fund_house"),
+            scheme_category=meta.get("scheme_category"),
+            scheme_type=meta.get("scheme_type"),
+        )
+        
+        # Get latest NAV from data
+        data_points = mfapi_data.get("data", [])
+        if data_points and isinstance(data_points, list):
+            latest = data_points[0]
+            try:
+                scheme.latest_nav = float(latest.get("nav", 0))
+                # MFAPI uses DD-MM-YYYY format
+                date_str = latest.get("date")
+                if date_str:
+                    from datetime import datetime
+                    scheme.latest_nav_date = datetime.strptime(date_str, "%d-%m-%Y").date()
+            except (ValueError, TypeError):
+                pass
+        
+        session.add(scheme)
+        session.commit()
+        session.refresh(scheme)
+
+    # Store scheme attributes before potential session clear
+    scheme_id = scheme.id
+    scheme_isin = scheme.isin
+    scheme_nav = scheme.latest_nav
+    scheme_name = scheme.name
 
     # 1. Check if we already have it cached
     enrichment = session.exec(
-        select(FundEnrichment).where(FundEnrichment.scheme_id == scheme.id)
+        select(FundEnrichment).where(FundEnrichment.scheme_id == scheme_id)
     ).first()
-
+    
     if enrichment:
         if force or should_purge(enrichment.fetched_at.date()):
             # Cache expired or forced refresh, delete it and we'll fetch a new one
+            # Force load relationships to trigger cascade delete
+            _ = enrichment.performance
+            _ = enrichment.risk_metrics
+            _ = enrichment.holdings
+            _ = enrichment.sectors
+            _ = enrichment.peers
+            _ = enrichment.managers
+            
             session.delete(enrichment)
             session.commit()
+            # Clear session to avoid stale references
+            session.expunge_all()
             enrichment = None
 
     # 2. Not cached or expired. Fetch from DaaS API
     if not enrichment:
         try:
-            raw_data = fetch_fund_intelligence(scheme.isin)
+            raw_data = fetch_fund_intelligence(scheme_isin)
             if not raw_data:
                 raise HTTPException(
                     status_code=404, detail="Intelligence data not found for this ISIN"
                 )
 
             enrichment = parse_enrichment_response(
-                scheme.id,
+                scheme_id,
                 raw_data,
-                mfa_nav=scheme.latest_nav,
-                mfa_name=scheme.name,
+                mfa_nav=scheme_nav,
+                mfa_name=scheme_name,
                 session=session,
             )
 
@@ -324,7 +425,7 @@ def get_scheme_enrichment(
             )
 
     # 3. Retrieve through DTO layer to ensure encapsulation
-    dto = get_enrichment_for_scheme(session, scheme.id)
+    dto = get_enrichment_for_scheme(session, scheme_id)
     if not dto:
         raise HTTPException(status_code=500, detail="Failed to retrieve enrichment DTO")
 

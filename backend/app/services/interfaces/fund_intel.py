@@ -81,6 +81,7 @@ class SectorDTO(BaseModel):
 class PeerDTO(BaseModel):
     fund_name: Optional[str] = None
     peer_isin: Optional[str] = None
+    peer_amfi_code: Optional[str] = None
     cagr_1y: Optional[float] = None
     cagr_3y: Optional[float] = None
     cagr_5y: Optional[float] = None

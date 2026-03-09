@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
-import { getSchemeEnrichment, RetryableError } from '@/lib/api';
+import { useRouter } from 'next/navigation';
+import { getSchemeEnrichment, RetryableError, getAmfiCodeFromIsin } from '@/lib/api';
 
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -19,9 +20,32 @@ export function EnrichmentView({ amfiCode }: { amfiCode: string }) {
     const [peerView, setPeerView] = useState<"performance" | "risk" | "fundamentals">("performance");
     const [holdingsView, setHoldingsView] = useState<"heaviest" | "increased" | "decreased">("heaviest");
     const toast = useToast();
+    const router = useRouter();
 
     const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+    const handlePeerClick = async (peer: any) => {
+        // If we have amfi_code, navigate directly
+        if (peer.peer_amfi_code) {
+            router.push(`/scheme/${peer.peer_amfi_code}`);
+            return;
+        }
+
+        // Otherwise, try to look up via ISIN
+        if (peer.peer_isin) {
+            try {
+                const amfiCode = await getAmfiCodeFromIsin(peer.peer_isin);
+                if (amfiCode) {
+                    router.push(`/scheme/${amfiCode}`);
+                } else {
+                    toast.error('Unable to find details for this fund');
+                }
+            } catch (err) {
+                toast.error('Failed to look up fund details');
+            }
+        }
+    };
 
     const fetchData = async (showToast: boolean = false, force: boolean = false) => {
         try {
@@ -814,8 +838,13 @@ export function EnrichmentView({ amfiCode }: { amfiCode: string }) {
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                                         {sortedPeers.map((peer: any, i: number) => {
+                                            const isClickable = peer.peer_amfi_code || peer.peer_isin;
                                             return (
-                                                <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                                                <tr
+                                                    key={i}
+                                                    className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 ${isClickable ? 'cursor-pointer' : ''}`}
+                                                    onClick={() => isClickable && handlePeerClick(peer)}
+                                                >
                                                     <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
                                                         <div className="font-medium whitespace-nowrap md:whitespace-normal" title={peer.fund_name}>{peer.fund_name}</div>
                                                         {peer.peer_isin && peer.fund_name === 'Unknown Peer' && (

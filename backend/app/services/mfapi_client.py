@@ -42,7 +42,11 @@ def extract_metadata(data: Dict[str, Any]) -> Dict[str, str]:
     Extracts relevant metadata from the MFAPI response.
     """
     meta = data.get("meta", {})
+    # MFAPI has multiple ISIN fields, prefer growth, fallback to div_reinvestment
+    isin = meta.get("isin_growth") or meta.get("isin_div_reinvestment") or ""
     return {
+        "scheme_name": meta.get("scheme_name"),
+        "isin": isin,
         "fund_house": meta.get("fund_house"),
         "scheme_category": meta.get("scheme_category"),
         "scheme_type": meta.get("scheme_type"),

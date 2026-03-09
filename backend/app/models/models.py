@@ -342,6 +342,7 @@ class FundPeer(SQLModel, table=True):
     enrichment_id: int = Field(foreign_key="fundenrichment.id", index=True)
     fund_name: Optional[str] = Field(default="Unknown Peer")
     peer_isin: Optional[str] = None
+    peer_amfi_code: Optional[str] = None  # NEW: for frontend navigation
     cagr_1y: Optional[float] = None  # NEW (was absent)
     cagr_3y: Optional[float] = None  # RENAMED from return_3y
     cagr_5y: Optional[float] = None  # NEW

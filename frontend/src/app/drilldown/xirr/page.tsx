@@ -35,7 +35,8 @@ export default function XirrDrilldownPage() {
                 const result = await getDashboardSummary(userId);
                 if (!result || !result.holdings) return;
 
-                const activeHoldings = result.holdings.filter((h: any) => h.current_value > 0 || h.invested_value > 0);
+                // Only show schemes with actual investments
+                const activeHoldings = result.holdings.filter((h: any) => h.invested_value > 0);
 
                 // Sort by XIRR descending, bringing errors/NA to bottom
                 activeHoldings.sort((a: Holding, b: Holding) => {
@@ -86,7 +87,7 @@ export default function XirrDrilldownPage() {
                         <div>
                             <p className={`text-sm font-semibold uppercase tracking-widest ${isPositiveXirr ? 'text-violet-700 dark:text-violet-500' : 'text-rose-700 dark:text-rose-500'}`}>Portfolio Aggregate XIRR</p>
                             <p className={`text-5xl font-extrabold mt-3 font-mono tracking-tighter drop-shadow-md ${isPositiveXirr ? 'text-violet-600 dark:text-violet-400 drop-shadow-[0_0_15px_rgba(139,92,246,0.3)]' : 'text-rose-600 dark:text-rose-400'}`}>
-                                {isPositiveXirr ? '+' : ''}{portfolioXirr.toFixed(2)}%
+                                {isPositiveXirr ? '+' : ''}{portfolioXirr != null ? portfolioXirr.toFixed(2) : '0.00'}%
                             </p>
                         </div>
                     </div>
@@ -139,7 +140,7 @@ export default function XirrDrilldownPage() {
                                             </td>
                                             <td className="px-2 py-4 whitespace-nowrap text-xs text-slate-400 dark:text-slate-700 text-center font-mono">→</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-right bg-violet-50/50 dark:bg-violet-500/[0.02] border-l border-slate-200 dark:border-white/5 group-hover:bg-violet-100 dark:group-hover:bg-violet-500/[0.05] transition-colors">
-                                                {h.xirr_status === 'VALID' && h.xirr !== undefined ? (
+                                                {h.xirr_status === 'VALID' && h.xirr != null ? (
                                                     <span className={`inline-block px-3 py-1.5 rounded-lg text-sm font-bold font-mono tracking-tight border shadow-sm ${h.xirr >= 0 ? 'bg-violet-100 dark:bg-violet-500/10 text-violet-700 dark:text-violet-400 border-violet-200 dark:border-violet-500/20' : 'bg-rose-100 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-500/20'}`}>
                                                         {h.xirr >= 0 ? '+' : ''}{h.xirr.toFixed(2)}%
                                                     </span>

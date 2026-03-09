@@ -212,6 +212,9 @@ export default function DashboardPage() {
     const gain = total_value - invested_value;
     const gainPercent = invested_value > 0 ? (gain / invested_value) * 100 : 0;
 
+    // Filter out schemes with no investments
+    const activeHoldings = holdings.filter(h => h.invested_value > 0);
+
     const isStale = latest_nav_date && (new Date().getTime() - new Date(latest_nav_date).getTime() > 3 * 24 * 60 * 60 * 1000);
     const navSyncFailed = data.nav_sync_status === "FAILED";
     const isCriticalStale = isStale && navSyncFailed;
@@ -300,7 +303,7 @@ export default function DashboardPage() {
                     </Card>
                     <Card title="XIRR" href="/drilldown/xirr">
                         <p className={`text-4xl font-bold ${xirr >= 0 ? 'text-violet-600 dark:text-violet-400 drop-shadow-[0_0_12px_rgba(167,139,250,0.3)]' : 'text-rose-500 dark:text-rose-400'}`}>
-                            {xirr.toFixed(2)}%
+                            {xirr != null ? xirr.toFixed(2) : '0.00'}%
                         </p>
                     </Card>
                 </div>
@@ -329,7 +332,7 @@ export default function DashboardPage() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                                {getSortedHoldings(holdings).map((h) => (
+                                {getSortedHoldings(activeHoldings).map((h) => (
                                     <tr key={h.isin} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
                                         <td className="px-6 py-4 text-sm font-medium">
                                             <Link href={h.amfi_code ? `/scheme/${h.amfi_code}` : '#'} className="text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 block truncate max-w-[200px] sm:max-w-xs md:max-w-md xl:max-w-xl transition-colors" title={h.scheme_name}>
@@ -353,7 +356,7 @@ export default function DashboardPage() {
                                         </td>
                                     </tr>
                                 ))}
-                                {holdings.length === 0 && (
+                                {activeHoldings.length === 0 && (
                                     <tr>
                                         <td colSpan={5} className="px-6 py-8 text-center text-slate-500 dark:text-slate-500">
                                             No active holdings found.

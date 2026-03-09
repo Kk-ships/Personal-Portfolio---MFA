@@ -59,6 +59,7 @@ export default function SchemeDetailsPage() {
     const [historyLoading, setHistoryLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isOwnedScheme, setIsOwnedScheme] = useState(true);
+    const [ledgerExpanded, setLedgerExpanded] = useState(false);
 
     useEffect(() => {
         const userId = localStorage.getItem('mfa_user_id');
@@ -298,60 +299,75 @@ export default function SchemeDetailsPage() {
             <EnrichmentView amfiCode={amfiCode} />
 
             {/* Minimalist Ledger Table */}
-            <h2 className="text-lg font-bold text-slate-900 dark:text-slate-200 mb-4 px-1 drop-shadow-sm">Transaction Ledger</h2>
             <div className="bg-white dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-white/5 overflow-hidden shadow-sm">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                        <thead>
-                            <tr className="border-b border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950/50">
-                                <th className="px-6 py-4 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest rounded-tl-xl whitespace-nowrap">Date</th>
-                                <th className="px-6 py-4 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest whitespace-nowrap">Action</th>
-                                <th className="px-6 py-4 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest text-right whitespace-nowrap">Amount</th>
-                                <th className="px-6 py-4 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest text-right whitespace-nowrap">NAV</th>
-                                <th className="px-6 py-4 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest text-right whitespace-nowrap">Units</th>
-                                <th className="px-6 py-4 text-[10px] font-bold text-indigo-500 dark:text-indigo-300 uppercase tracking-widest text-right bg-indigo-50 dark:bg-indigo-500/5 rounded-tr-xl whitespace-nowrap border-l border-slate-200 dark:border-white/5">Balance</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                            {ledger.map((row) => {
-                                const isOutflow = ['REDEMPTION', 'SWITCH_OUT', 'STP_OUT', 'SWP'].some(t => row.type.toUpperCase().includes(t));
+                <button
+                    onClick={() => setLedgerExpanded(!ledgerExpanded)}
+                    className="w-full flex items-center justify-between px-6 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group"
+                >
+                    <h2 className="text-lg font-bold text-slate-900 dark:text-slate-200 drop-shadow-sm">Transaction Ledger</h2>
+                    <svg
+                        className={`w-5 h-5 text-slate-500 dark:text-slate-400 transition-transform duration-200 ${ledgerExpanded ? 'rotate-180' : ''}`}
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                    >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                </button>
+                {ledgerExpanded && (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="border-b border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950/50">
+                                    <th className="px-6 py-4 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest rounded-tl-xl whitespace-nowrap">Date</th>
+                                    <th className="px-6 py-4 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest whitespace-nowrap">Action</th>
+                                    <th className="px-6 py-4 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest text-right whitespace-nowrap">Amount</th>
+                                    <th className="px-6 py-4 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest text-right whitespace-nowrap">NAV</th>
+                                    <th className="px-6 py-4 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest text-right whitespace-nowrap">Units</th>
+                                    <th className="px-6 py-4 text-[10px] font-bold text-indigo-500 dark:text-indigo-300 uppercase tracking-widest text-right bg-indigo-50 dark:bg-indigo-500/5 rounded-tr-xl whitespace-nowrap border-l border-slate-200 dark:border-white/5">Balance</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                                {ledger.map((row) => {
+                                    const isOutflow = ['REDEMPTION', 'SWITCH_OUT', 'STP_OUT', 'SWP'].some(t => row.type.toUpperCase().includes(t));
 
-                                return (
-                                    <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300 font-medium">
-                                            {new Date(row.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="flex items-center">
-                                                <span className={`w-1.5 h-1.5 rounded-full mr-2 shadow-sm ${isOutflow ? 'bg-rose-500 dark:bg-rose-400' : 'bg-emerald-500 dark:bg-emerald-400'}`}></span>
-                                                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 tracking-wide">{row.type.replace(/_/g, ' ')}</span>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-800 dark:text-slate-200 text-right font-mono">
-                                            {row.amount === 0 ? '-' : `₹${Math.abs(row.amount).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-500 text-right font-mono tracking-tighter">
-                                            ₹{row.nav.toFixed(4)}
-                                        </td>
-                                        <td className={`px-6 py-4 whitespace-nowrap text-sm text-right font-mono tracking-tighter ${isOutflow ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                                            {isOutflow ? '' : '+'}{row.units.toFixed(3)}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-indigo-600 dark:text-indigo-300 font-bold text-right font-mono bg-indigo-50/50 dark:bg-indigo-500/[0.02] border-l border-slate-200 dark:border-white/5 group-hover:bg-indigo-100 dark:group-hover:bg-indigo-500/[0.05] transition-colors tracking-tighter">
-                                            {row.running_balance.toFixed(3)}
+                                    return (
+                                        <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300 font-medium">
+                                                {new Date(row.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="flex items-center">
+                                                    <span className={`w-1.5 h-1.5 rounded-full mr-2 shadow-sm ${isOutflow ? 'bg-rose-500 dark:bg-rose-400' : 'bg-emerald-500 dark:bg-emerald-400'}`}></span>
+                                                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 tracking-wide">{row.type.replace(/_/g, ' ')}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-800 dark:text-slate-200 text-right font-mono">
+                                                {row.amount === 0 ? '-' : `₹${Math.abs(row.amount).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-500 text-right font-mono tracking-tighter">
+                                                ₹{row.nav.toFixed(4)}
+                                            </td>
+                                            <td className={`px-6 py-4 whitespace-nowrap text-sm text-right font-mono tracking-tighter ${isOutflow ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                                                {isOutflow ? '' : '+'}{row.units.toFixed(3)}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-indigo-600 dark:text-indigo-300 font-bold text-right font-mono bg-indigo-50/50 dark:bg-indigo-500/[0.02] border-l border-slate-200 dark:border-white/5 group-hover:bg-indigo-100 dark:group-hover:bg-indigo-500/[0.05] transition-colors tracking-tighter">
+                                                {row.running_balance.toFixed(3)}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                                {ledger.length === 0 && (
+                                    <tr>
+                                        <td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-500">
+                                            No transactions recorded.
                                         </td>
                                     </tr>
-                                );
-                            })}
-                            {ledger.length === 0 && (
-                                <tr>
-                                    <td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-500">
-                                        No transactions recorded.
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
             </div>
         </div>
     );

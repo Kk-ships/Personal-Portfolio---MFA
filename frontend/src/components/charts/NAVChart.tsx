@@ -262,13 +262,14 @@ export function NAVChart({ data, isLoading, onRefresh }: NAVChartProps) {
                         <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#64748b', strokeWidth: 1, strokeDasharray: '4 4' }} />
                         <ReferenceLine y={filteredData[0]?.nav} stroke="#64748b" strokeDasharray="3 3" opacity={0.5} />
                         <Line
-                            type="stepAfter"
+                            type="monotone"
                             dataKey="nav"
                             stroke="#818cf8"
-                            strokeWidth={2}
+                            strokeWidth={2.5}
                             dot={false}
-                            activeDot={{ r: 5, fill: "#818cf8", strokeWidth: 2 }}
-                            animationDuration={600}
+                            activeDot={{ r: 6, fill: "#818cf8", strokeWidth: 2, stroke: "#fff" }}
+                            animationDuration={800}
+                            fill="url(#colorNav)"
                         />
                     </LineChart>
                 </ResponsiveContainer>

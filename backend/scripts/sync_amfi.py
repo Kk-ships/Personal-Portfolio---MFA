@@ -2,6 +2,7 @@ import sys
 import os
 import requests
 import datetime
+from datetime import timezone
 import logging
 from sqlmodel import Session
 from sqlmodel import select
@@ -92,17 +93,17 @@ def update_status(session: Session, status: str):
         state = SystemState(key="nav_sync_status", value=status)
     else:
         state.value = status
-        state.updated_at = datetime.datetime.utcnow()
+        state.updated_at = datetime.datetime.now(timezone.utc)
     session.add(state)
 
     last_run = session.get(SystemState, "nav_sync_last_run")
     if not last_run:
         last_run = SystemState(
-            key="nav_sync_last_run", value=datetime.datetime.utcnow().isoformat()
+            key="nav_sync_last_run", value=datetime.datetime.now(timezone.utc).isoformat()
         )
     else:
-        last_run.value = datetime.datetime.utcnow().isoformat()
-        last_run.updated_at = datetime.datetime.utcnow()
+        last_run.value = datetime.datetime.now(timezone.utc).isoformat()
+        last_run.updated_at = datetime.datetime.now(timezone.utc)
     session.add(last_run)
 
     session.commit()
@@ -123,10 +124,10 @@ def run_sync():
             use_cache = False
             if os.path.exists(amfi_file_path):
                 try:
-                    file_mtime = datetime.datetime.utcfromtimestamp(
-                        os.path.getmtime(amfi_file_path)
+                    file_mtime = datetime.datetime.fromtimestamp(
+                        os.path.getmtime(amfi_file_path), tz=timezone.utc
                     )
-                    time_since_file = datetime.datetime.utcnow() - file_mtime
+                    time_since_file = datetime.datetime.now(timezone.utc) - file_mtime
                     logger.debug(
                         f"Cache file age: {time_since_file.total_seconds() / 3600:.1f} hours"
                     )

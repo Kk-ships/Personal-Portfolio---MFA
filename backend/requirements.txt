@@ -7,6 +7,7 @@ python-dotenv==1.0.1
 # Database
 sqlmodel==0.0.16
 SQLAlchemy==2.0.46
+alembic==1.14.0
 
 # CAS parsing
 casparser==0.5.4

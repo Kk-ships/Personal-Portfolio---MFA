@@ -11,6 +11,10 @@ echo "Initializing database..."
 python -c "from app.db.engine import create_db_and_tables; create_db_and_tables()"
 sqlite3 /data/mfa.db "PRAGMA journal_mode=WAL;"
 
+# Run database migrations using Alembic
+echo "Running database migrations..."
+alembic upgrade head
+
 # Run initial sync on startup so data is fresh
 echo "Running initial NAV sync..."
 /usr/local/bin/python /app/scripts/sync_amfi.py

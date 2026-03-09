@@ -328,7 +328,7 @@ def get_scheme_enrichment(
         meta = extract_metadata(mfapi_data)
 
         # Derive type from category
-        category = meta.get("scheme_category", "").upper()
+        category = (meta.get("scheme_category") or "").upper()
         if "EQUITY" in category or "ELSS" in category:
             scheme_type = "EQUITY"
         elif "DEBT" in category or "GILT" in category or "LIQUID" in category:
@@ -351,8 +351,8 @@ def get_scheme_enrichment(
 
         scheme = Scheme(
             amfi_code=amfi_code,
-            name=meta.get("scheme_name", f"Scheme {amfi_code}"),
-            isin=meta.get("isin", ""),
+            name=meta.get("scheme_name") or f"Scheme {amfi_code}",
+            isin=meta.get("isin") or "",
             type=scheme_type,
             fund_house=meta.get("fund_house"),
             scheme_category=meta.get("scheme_category"),

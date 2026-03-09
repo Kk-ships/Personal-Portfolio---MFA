@@ -2,9 +2,16 @@
 Pytest configuration and shared fixtures for the test suite.
 """
 
+import sys
+from pathlib import Path
+
 import pytest
 from sqlmodel import SQLModel, create_engine
 from sqlmodel.pool import StaticPool
+
+# Add the backend directory to Python path so 'app' module can be imported
+backend_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(backend_dir))
 
 
 @pytest.fixture(scope="session")

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
 import { getSchemeDetails, getSchemeHistory } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
@@ -18,6 +19,10 @@ interface SchemeMeta {
     isin: string;
     fund_house: string;
     category: string;
+    sub_category?: string;
+    plan_name?: string;
+    option_name?: string;
+    is_enriched?: boolean;
     type: string;
     latest_nav: number;
     latest_nav_date: string;
@@ -30,6 +35,9 @@ interface SchemeKPIs {
     xirr?: number;
     xirr_status?: string;
     stamp_duty?: number;
+    nav_change_percent?: number;
+    nav_change_amount?: number;
+    nav_absolute_change?: number;
 }
 
 interface TransactionRow {
@@ -40,6 +48,7 @@ interface TransactionRow {
     nav: number;
     units: number;
     running_balance: number;
+    is_tax?: boolean;
 }
 
 interface SchemeData {
@@ -53,6 +62,19 @@ export default function SchemeDetailsPage() {
     const router = useRouter();
     const amfiCode = params.amfi_code as string;
 
+    const [showTaxes, setShowTaxes] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('mfa_show_taxes') === 'true';
+        }
+        return false;
+    });
+
+    const toggleTaxes = () => {
+        const next = !showTaxes;
+        setShowTaxes(next);
+        localStorage.setItem('mfa_show_taxes', String(next));
+    };
+
     const [data, setData] = useState<SchemeData | null>(null);
     const [historyData, setHistoryData] = useState<NAVDataPoint[]>([]);
     const [loading, setLoading] = useState(true);
@@ -60,6 +82,7 @@ export default function SchemeDetailsPage() {
     const [error, setError] = useState<string | null>(null);
     const [isOwnedScheme, setIsOwnedScheme] = useState(true);
     const [ledgerExpanded, setLedgerExpanded] = useState(false);
+    const [refreshTick, setRefreshTick] = useState(0);
 
     useEffect(() => {
         const userId = localStorage.getItem('mfa_user_id');
@@ -73,7 +96,7 @@ export default function SchemeDetailsPage() {
             }
 
             try {
-                const res = await getSchemeDetails(amfiCode, userId);
+                const res = await getSchemeDetails(amfiCode, userId, showTaxes);
                 if (res) {
                     setData(res);
                     setIsOwnedScheme(true);
@@ -105,7 +128,7 @@ export default function SchemeDetailsPage() {
 
         fetchDetails();
         fetchHistory();
-    }, [amfiCode, router]);
+    }, [amfiCode, router, refreshTick, showTaxes]);
 
     const handleRefreshHistory = async () => {
         setHistoryLoading(true);
@@ -185,7 +208,7 @@ export default function SchemeDetailsPage() {
     const isGain = absGain >= 0;
 
     return (
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 bg-transparent">
+        <div className="w-[90%] max-w-none mx-auto px-4 sm:px-6 lg:px-8 py-10 bg-transparent">
             <button
                 onClick={() => router.push('/dashboard')}
                 className="group flex items-center text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 mb-8 transition-colors"
@@ -201,13 +224,39 @@ export default function SchemeDetailsPage() {
 
                 <div className="relative z-10 flex flex-col md:flex-row md:justify-between md:items-end gap-6">
                     <div className="max-w-2xl">
-                        <div className="flex items-center gap-3 mb-4">
+                        <div className="flex flex-wrap items-center gap-2 mb-4">
                             <span className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] uppercase font-bold tracking-widest rounded-full border border-slate-200 dark:border-white/5">
                                 {scheme.fund_house || "Unknown AMC"}
                             </span>
-                            <span className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-[10px] uppercase font-bold tracking-widest rounded-full border border-indigo-200 dark:border-indigo-500/20">
-                                {scheme.category || "Equity"}
-                            </span>
+                            {scheme.is_enriched ? (
+                                <>
+                                    {scheme.category && (
+                                        <Link href={`/drilldown/peers/${amfiCode}`} className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-[10px] uppercase font-bold tracking-widest rounded-full border border-indigo-200 dark:border-indigo-500/20 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-colors">
+                                            {scheme.category}
+                                        </Link>
+                                    )}
+                                    {scheme.sub_category && (
+                                        <Link href={`/drilldown/peers/${amfiCode}`} className="px-2.5 py-1 bg-cyan-50 dark:bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 text-[10px] uppercase font-bold tracking-widest rounded-full border border-cyan-200 dark:border-cyan-500/20 hover:bg-cyan-100 dark:hover:bg-cyan-500/20 transition-colors">
+                                            {scheme.sub_category}
+                                        </Link>
+                                    )}
+                                    {scheme.plan_name && !['direct', 'growth'].includes(scheme.plan_name.toLowerCase()) && (
+                                        <span className="px-2.5 py-1 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] uppercase font-bold tracking-widest rounded-full border border-emerald-200 dark:border-emerald-500/20">
+                                            {scheme.plan_name}
+                                        </span>
+                                    )}
+                                    {scheme.option_name && !['direct', 'growth'].includes(scheme.option_name.toLowerCase()) && (
+                                        <span className="px-2.5 py-1 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] uppercase font-bold tracking-widest rounded-full border border-amber-200 dark:border-amber-500/20">
+                                            {scheme.option_name}
+                                        </span>
+                                    )}
+                                </>
+                            ) : (
+                                <span className="px-2.5 py-1 bg-slate-100/50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 text-[10px] uppercase font-bold tracking-widest rounded-full border border-slate-200/50 dark:border-slate-800 animate-pulse flex items-center gap-1.5 shadow-sm">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 dark:bg-indigo-500 animate-ping"></span>
+                                    Analyzing Category...
+                                </span>
+                            )}
                         </div>
                         <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight leading-tight mb-2 text-balance lg:max-w-[90%]">
                             {scheme.name}
@@ -217,19 +266,44 @@ export default function SchemeDetailsPage() {
                         </p>
                     </div>
 
-                    <div className="text-left md:text-right bg-slate-50 dark:bg-slate-950/50 backdrop-blur-md p-4 rounded-2xl border border-slate-200 dark:border-white/5">
-                        <p className="text-xs uppercase tracking-widest text-slate-500 font-semibold mb-1">Latest NAV</p>
-                        <p className="text-2xl font-bold text-slate-900 dark:text-slate-200 font-mono tracking-tight drop-shadow-sm">
-                            ₹{scheme.latest_nav ? scheme.latest_nav.toFixed(4) : 'N/A'}
-                        </p>
-                        <p className="text-[11px] text-slate-500 mt-0.5">As of {scheme.latest_nav_date}</p>
+                    <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-5 rounded-2xl border border-slate-200/50 dark:border-white/10 shadow-lg min-w-[260px]">
+                        <div className="flex justify-between items-center mb-2">
+                            <p className="text-[11px] uppercase tracking-widest text-slate-500 dark:text-slate-400 font-bold">Latest NAV</p>
+                            <span className="text-[10px] text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md font-mono">
+                                {scheme.latest_nav_date}
+                            </span>
+                        </div>
+
+                        <div className="flex items-end justify-between gap-6">
+                            <p className="text-3xl font-black text-slate-900 dark:text-white font-mono tracking-tight">
+                                ₹{scheme.latest_nav ? scheme.latest_nav.toFixed(4) : 'N/A'}
+                            </p>
+
+                            {kpis.nav_absolute_change != null && kpis.nav_change_percent != null && (
+                                <div className={`flex flex-col items-end ${kpis.nav_absolute_change >= 0 ? 'text-emerald-500 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}>
+                                    <div className="flex items-center gap-1">
+                                        {kpis.nav_absolute_change >= 0 ? (
+                                            <svg className="w-5 h-5 drop-shadow-sm" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>
+                                        ) : (
+                                            <svg className="w-5 h-5 drop-shadow-sm" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>
+                                        )}
+                                        <p className="text-xl font-bold font-mono tracking-tight drop-shadow-sm">
+                                            ₹{Math.abs(kpis.nav_absolute_change).toFixed(4)}
+                                        </p>
+                                    </div>
+                                    <span className="text-sm font-bold bg-current/10 px-2 py-0.5 rounded-md flex items-center mt-1 border border-current/20">
+                                        {Math.abs(kpis.nav_change_percent).toFixed(2)}%
+                                    </span>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
 
-            {/* Performance KPI Grid - Only show if scheme has investments */}
-            {kpis.invested_value > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+            {/* Performance KPI Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-10">
+                <div className="col-span-1 sm:col-span-2 md:grid-cols-3 lg:col-span-5 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                     <div className="bg-white dark:bg-slate-900/50 rounded-2xl p-6 border border-slate-200 dark:border-white/5 shadow-sm flex flex-col justify-between transition-colors">
                         <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-4">Invested</p>
                         <p className="text-2xl font-bold text-slate-900 dark:text-slate-200 font-mono tracking-tight drop-shadow-sm">
@@ -251,6 +325,20 @@ export default function SchemeDetailsPage() {
                             {kpis.units.toFixed(3)} units active
                         </p>
                     </div>
+
+                    {kpis.nav_change_amount != null && kpis.nav_change_percent != null && (
+                        <div className="bg-white dark:bg-slate-900/50 rounded-2xl p-6 border border-slate-200 dark:border-white/5 shadow-sm flex flex-col justify-between relative overflow-hidden transition-colors">
+                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-4 relative z-10">1D Change</p>
+                            <div className="relative z-10">
+                                <p className={`text-2xl font-bold font-mono tracking-tight ${kpis.nav_change_amount >= 0 ? 'text-emerald-500 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}>
+                                    {kpis.nav_change_amount >= 0 ? '+' : '-'}₹{Math.abs(kpis.nav_change_amount).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                                </p>
+                                <span className={`inline-block px-2 py-0.5 mt-2 rounded font-mono text-xs font-medium ${kpis.nav_change_amount >= 0 ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400'}`}>
+                                    {kpis.nav_change_percent >= 0 ? '+' : ''}{kpis.nav_change_percent.toFixed(2)}%
+                                </span>
+                            </div>
+                        </div>
+                    )}
 
                     <div className="bg-white dark:bg-slate-900/50 rounded-2xl p-6 border border-slate-200 dark:border-white/5 shadow-sm flex flex-col justify-between relative overflow-hidden transition-colors">
                         <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-4 relative z-10">Abs. Return</p>
@@ -284,7 +372,7 @@ export default function SchemeDetailsPage() {
                         </div>
                     </div>
                 </div>
-            )}
+            </div>
 
             {/* NAV History Chart */}
             <div className="mb-10">
@@ -296,78 +384,71 @@ export default function SchemeDetailsPage() {
             </div>
 
             {/* DaaS Advanced Intelligence View */}
-            <EnrichmentView amfiCode={amfiCode} />
+            <EnrichmentView amfiCode={amfiCode} onLoaded={() => setRefreshTick(t => t + 1)} />
 
             {/* Minimalist Ledger Table */}
-            <div className="bg-white dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-white/5 overflow-hidden shadow-sm">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 mt-8 px-1">
+                <h2 className="text-lg font-bold text-slate-900 dark:text-slate-200 drop-shadow-sm">Transaction Ledger</h2>
                 <button
-                    onClick={() => setLedgerExpanded(!ledgerExpanded)}
-                    className="w-full flex items-center justify-between px-6 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group"
+                    onClick={toggleTaxes}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${showTaxes
+                        ? 'bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/30 shadow-sm'
+                        : 'bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-white/10 hover:border-amber-200 dark:hover:border-amber-500/20 hover:text-amber-600 dark:hover:text-amber-400'
+                        }`}
+                    title={showTaxes ? 'Hide stamp duty and tax transactions' : 'Show stamp duty and tax transactions'}
                 >
-                    <h2 className="text-lg font-bold text-slate-900 dark:text-slate-200 drop-shadow-sm">Transaction Ledger</h2>
-                    <svg
-                        className={`w-5 h-5 text-slate-500 dark:text-slate-400 transition-transform duration-200 ${ledgerExpanded ? 'rotate-180' : ''}`}
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                    >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
+                    <span className="text-xs">🧾</span>
+                    Show Taxes
                 </button>
-                {ledgerExpanded && (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="border-b border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950/50">
-                                    <th className="px-6 py-4 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest rounded-tl-xl whitespace-nowrap">Date</th>
-                                    <th className="px-6 py-4 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest whitespace-nowrap">Action</th>
-                                    <th className="px-6 py-4 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest text-right whitespace-nowrap">Amount</th>
-                                    <th className="px-6 py-4 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest text-right whitespace-nowrap">NAV</th>
-                                    <th className="px-6 py-4 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest text-right whitespace-nowrap">Units</th>
-                                    <th className="px-6 py-4 text-[10px] font-bold text-indigo-500 dark:text-indigo-300 uppercase tracking-widest text-right bg-indigo-50 dark:bg-indigo-500/5 rounded-tr-xl whitespace-nowrap border-l border-slate-200 dark:border-white/5">Balance</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                                {ledger.map((row) => {
-                                    const isOutflow = ['REDEMPTION', 'SWITCH_OUT', 'STP_OUT', 'SWP'].some(t => row.type.toUpperCase().includes(t));
+            </div>
 
-                                    return (
-                                        <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300 font-medium">
-                                                {new Date(row.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="flex items-center">
-                                                    <span className={`w-1.5 h-1.5 rounded-full mr-2 shadow-sm ${isOutflow ? 'bg-rose-500 dark:bg-rose-400' : 'bg-emerald-500 dark:bg-emerald-400'}`}></span>
-                                                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 tracking-wide">{row.type.replace(/_/g, ' ')}</span>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-800 dark:text-slate-200 text-right font-mono">
-                                                {row.amount === 0 ? '-' : `₹${Math.abs(row.amount).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-500 text-right font-mono tracking-tighter">
-                                                ₹{row.nav.toFixed(4)}
-                                            </td>
-                                            <td className={`px-6 py-4 whitespace-nowrap text-sm text-right font-mono tracking-tighter ${isOutflow ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                                                {isOutflow ? '' : '+'}{row.units.toFixed(3)}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-indigo-600 dark:text-indigo-300 font-bold text-right font-mono bg-indigo-50/50 dark:bg-indigo-500/[0.02] border-l border-slate-200 dark:border-white/5 group-hover:bg-indigo-100 dark:group-hover:bg-indigo-500/[0.05] transition-colors tracking-tighter">
-                                                {row.running_balance.toFixed(3)}
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                                {ledger.length === 0 && (
-                                    <tr>
-                                        <td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-500">
-                                            No transactions recorded.
+            <div className="bg-white dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-white/5 overflow-hidden shadow-sm">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="border-b border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950/50">
+                                <th className="px-6 py-4 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest rounded-tl-xl whitespace-nowrap">Date</th>
+                                <th className="px-6 py-4 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest whitespace-nowrap">Action</th>
+                                <th className="px-6 py-4 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest text-right whitespace-nowrap">Amount</th>
+                                <th className="px-6 py-4 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest text-right whitespace-nowrap">NAV</th>
+                                <th className="px-6 py-4 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest text-right whitespace-nowrap">Units</th>
+                                <th className="px-6 py-4 text-[10px] font-bold text-indigo-500 dark:text-indigo-300 uppercase tracking-widest text-right bg-indigo-50 dark:bg-indigo-500/5 rounded-tr-xl whitespace-nowrap border-l border-slate-200 dark:border-white/5">Balance</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                            {ledger.map((row) => {
+                                const isOutflow = ['REDEMPTION', 'SWITCH_OUT', 'STP_OUT', 'SWP', 'STAMP_DUTY'].some(t => row.type.toUpperCase().includes(t));
+                                const isTax = row.is_tax === true;
+
+                                return (
+                                    <tr key={row.id} className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group ${isTax ? 'bg-amber-50/30 dark:bg-amber-900/10' : ''}`}>
+                                        <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${isTax ? 'text-slate-400 dark:text-slate-500' : 'text-slate-700 dark:text-slate-300'}`}>
+                                            {new Date(row.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <div className="flex items-center">
+                                                <span className={`w-1.5 h-1.5 rounded-full mr-2 shadow-sm ${isOutflow ? 'bg-rose-500 dark:bg-rose-400' : 'bg-emerald-500 dark:bg-emerald-400'}`}></span>
+                                                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 tracking-wide">{row.type.replace(/_/g, ' ')}</span>
+                                            </div>
+                                        </td>
+                                        <td className={`px-6 py-4 whitespace-nowrap text-sm text-right font-mono ${isTax ? 'text-slate-400 dark:text-slate-500' : 'text-slate-800 dark:text-slate-200'}`}>
+                                            {row.amount === 0 ? '-' : `₹${Math.abs(row.amount).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-500 text-right font-mono tracking-tighter">
+                                            {row.nav === 0 ? '-' : `₹${row.nav.toFixed(4)}`}
+                                        </td>
+                                        <td className={`px-6 py-4 whitespace-nowrap text-sm text-right font-mono tracking-tighter ${isTax ? 'text-slate-400 dark:text-slate-500' : (isOutflow ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400')}`}>
+                                            {row.units === 0 ? '-' : `${isOutflow ? '' : '+'}${row.units.toFixed(3)}`}
+                                        </td>
+                                        <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold text-right font-mono bg-indigo-50/50 dark:bg-indigo-500/[0.02] border-l border-slate-200 dark:border-white/5 group-hover:bg-indigo-100 dark:group-hover:bg-indigo-500/[0.05] transition-colors tracking-tighter ${isTax ? 'text-slate-400 dark:text-slate-500' : 'text-indigo-600 dark:text-indigo-300'}`}>
+                                            {row.running_balance.toFixed(3)}
                                         </td>
                                     </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     );

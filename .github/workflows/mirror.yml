@@ -23,6 +23,15 @@ jobs:
           # CRITICAL: This prevents the local token from overriding your push token
           persist-credentials: false
 
+      - name: Rewrite commit authors
+        run: |
+          git filter-branch --env-filter '
+            export GIT_AUTHOR_NAME="itsddpanda"
+            export GIT_AUTHOR_EMAIL="itsddpanda@outlook.com"
+            export GIT_COMMITTER_NAME="itsddpanda"
+            export GIT_COMMITTER_EMAIL="itsddpanda@outlook.com"
+          ' --tag-name-filter cat -f -- --branches --tags
+
       - name: Push to Public Repo
         env:
           APP_TOKEN: ${{ steps.generate_token.outputs.token }}
@@ -30,6 +39,6 @@ jobs:
         run: |
           # Use the token explicitly in the URL
           git remote add public "https://x-access-token:${APP_TOKEN}@github.com/itsddpanda/${PUBLIC_REPO}.git"
-
-          # Force push to the public repo
-          git push public main --force
+          
+          # Force push to the public repo (with rewritten tags)
+          git push public main --force --tags

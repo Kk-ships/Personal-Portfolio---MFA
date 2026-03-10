@@ -69,6 +69,7 @@ def get_scheme_by_isin(isin: str):
 @router.get("/{amfi_code}")
 def get_scheme_details(
     amfi_code: str,
+    include_taxes: bool = False,
     x_user_id: str = Header(None),
     session: Session = Depends(get_session),
 ):
@@ -159,8 +160,24 @@ def get_scheme_details(
                     units_to_redeem -= batch["units"]
                     fifo_queue.pop(0)
 
-        if "STAMP_DUTY" in t_type:
-            total_stamp_duty += abs(amount)
+        if "STAMP_DUTY" in t_type or "STT" in t_type:
+            # We can accumulate STT into the stamp duty total or just leave it. Since it's already a negligible metric we leave it.
+            if "STAMP_DUTY" in t_type:
+                total_stamp_duty += abs(amount)
+
+            if include_taxes:
+                ledger.append(
+                    {
+                        "id": t.id,
+                        "date": t.date.isoformat(),
+                        "type": t.type,
+                        "amount": amount,
+                        "nav": t.nav,
+                        "units": units,
+                        "running_balance": round(running_units, 3),
+                        "is_tax": True,
+                    }
+                )
         else:
             ledger.append(
                 {
@@ -171,6 +188,7 @@ def get_scheme_details(
                     "nav": t.nav,
                     "units": units,
                     "running_balance": round(running_units, 3),
+                    "is_tax": False,
                 }
             )
 
@@ -188,7 +206,7 @@ def get_scheme_details(
 
     for t in transactions:
         t_type = t.type.upper()
-        if "STAMP_DUTY" in t_type:
+        if "STAMP_DUTY" in t_type or "STT" in t_type:
             continue
 
         if any(x in t_type for x in inflow_types):
@@ -217,13 +235,52 @@ def get_scheme_details(
         except Exception:
             xirr_status = "ERROR"
 
+    # 4.5. Fetch FundEnrichment for metadata
+    enrichment = session.exec(
+        select(FundEnrichment).where(FundEnrichment.scheme_id == scheme.id)
+    ).first()
+
+    # Calculate exact local 1D change %
+    nav_history_records = session.exec(
+        select(NavHistory)
+        .where(NavHistory.scheme_id == scheme.id)
+        .order_by(NavHistory.date.desc())
+        .limit(2)
+    ).all()
+
+    calc_nav_change_pct = None
+    if len(nav_history_records) >= 2:
+        nav_today = nav_history_records[0].nav
+        nav_yday = nav_history_records[1].nav
+        if nav_yday > 0:
+            calc_nav_change_pct = ((nav_today - nav_yday) / nav_yday) * 100
+    elif enrichment and enrichment.nav_change_percent is not None:
+        calc_nav_change_pct = enrichment.nav_change_percent
+
+    calc_nav_change_amount = None
+    calc_nav_absolute_change = None
+    if calc_nav_change_pct is not None:
+        calc_nav_change_amount = current_value * (calc_nav_change_pct / (100.0 + calc_nav_change_pct))
+    
+    if len(nav_history_records) >= 2:
+        nav_today = nav_history_records[0].nav
+        nav_yday = nav_history_records[1].nav
+        calc_nav_absolute_change = nav_today - nav_yday
+
+
     return {
         "scheme": {
             "name": scheme.name,
             "amfi_code": scheme.amfi_code,
             "isin": scheme.isin,
             "fund_house": scheme.fund_house,
-            "category": scheme.scheme_category,
+            "category": (
+                enrichment.category if enrichment else scheme.scheme_category
+            ),
+            "sub_category": enrichment.sub_category if enrichment else None,
+            "plan_name": enrichment.plan_name if enrichment else None,
+            "option_name": enrichment.option_name if enrichment else None,
+            "is_enriched": enrichment is not None,
             "type": scheme.scheme_type,
             "latest_nav": scheme.latest_nav,
             "latest_nav_date": (
@@ -237,6 +294,9 @@ def get_scheme_details(
             "xirr": round(calc_xirr, 2) if calc_xirr is not None else None,
             "xirr_status": xirr_status,
             "stamp_duty": round(total_stamp_duty, 2),
+            "nav_change_percent": calc_nav_change_pct,
+            "nav_change_amount": round(calc_nav_change_amount, 2) if calc_nav_change_amount is not None else None,
+            "nav_absolute_change": round(calc_nav_absolute_change, 4) if calc_nav_absolute_change is not None else None,
         },
         "ledger": ledger,
     }
@@ -309,7 +369,10 @@ def trigger_scheme_backfill(amfi_code: str, session: Session = Depends(get_sessi
 
 @router.get("/{amfi_code}/enrichment")
 def get_scheme_enrichment(
-    amfi_code: str, force: bool = False, session: Session = Depends(get_session)
+    amfi_code: str, 
+    force: bool = False, 
+    x_user_id: str | None = Header(None, alias="X-User-Id"),
+    session: Session = Depends(get_session)
 ):
     """
     Fetches the Fund Intelligence extended data.
@@ -445,5 +508,16 @@ def get_scheme_enrichment(
     dto = get_enrichment_for_scheme(session, scheme_id)
     if not dto:
         raise HTTPException(status_code=500, detail="Failed to retrieve enrichment DTO")
+
+    # 4. Apply custom highlights logic on the fly
+    from app.services.fund_intelligence import generate_custom_highlights
+    import json
+
+    # Multi-period highlights with context
+    personalized_highlights = generate_custom_highlights(dto)
+    dto.kbyi = json.dumps(personalized_highlights)
+    
+    dto.isin = scheme.isin
+    dto.scheme_name = scheme.name
 
     return dto

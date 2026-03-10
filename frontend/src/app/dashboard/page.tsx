@@ -17,6 +17,10 @@ interface Holding {
     current_value: number;
     invested_value: number;
     is_estimated: boolean;
+    is_redeemed: boolean;
+    nav_change_percent: number | null;
+    xirr?: number;
+    xirr_status?: string;
 }
 
 interface SummaryData {
@@ -27,9 +31,12 @@ interface SummaryData {
     holdings: Holding[];
     has_estimated_holdings: boolean;
     estimated_schemes_count: number;
+    redeemed_count: number;
     total_stamp_duty: number;
     nav_sync_status: string;
     nav_sync_last_run: string | null;
+    portfolio_1d_change_percent: number | null;
+    portfolio_1d_change_amount: number | null;
 }
 
 import { useToast } from '@/components/ui/Toast';
@@ -44,23 +51,37 @@ export default function DashboardPage() {
     const [syncing, setSyncing] = useState(false);
     const [syncProgress, setSyncProgress] = useState<string | null>(null);
     const [showEstimatedBanner, setShowEstimatedBanner] = useState(true);
-    const [sortField, setSortField] = useState<SortField>('current_value');
-    const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+    const [showRedeemed, setShowRedeemed] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('mfa_show_redeemed') === 'true';
+        }
+        return false;
+    });
     const router = useRouter();
     const toast = useToast();
+
+    const toggleRedeemed = () => {
+        const next = !showRedeemed;
+        setShowRedeemed(next);
+        localStorage.setItem('mfa_show_redeemed', String(next));
+    };
 
     const syncingRef = useRef(syncing);
     useEffect(() => {
         syncingRef.current = syncing;
     }, [syncing]);
 
-    const fetchData = React.useCallback(async (userId: string) => {
+    const fetchData = React.useCallback(async (userId: string, includeRedeemed: boolean = false) => {
         try {
-            const result = await getDashboardSummary(userId);
+            const result = await getDashboardSummary(userId, includeRedeemed);
             if (!result) {
                 router.push('/upload');
             } else {
                 setData(result);
+                if (result.nav_sync_status === 'IN_PROGRESS' || result.nav_sync_status === 'FETCHING') {
+                    setSyncing(true);
+                    syncingRef.current = true;
+                }
             }
         } catch (error) {
             console.error("Failed to fetch dashboard", error);
@@ -89,7 +110,7 @@ export default function DashboardPage() {
             sessionStorage.removeItem('upload_success_messages');
         }
 
-        fetchData(userId);
+        fetchData(userId, showRedeemed);
 
         // Dynamic polling interval
         let pollTimeout: NodeJS.Timeout;
@@ -100,7 +121,7 @@ export default function DashboardPage() {
 
                 // If it just finished syncing, refresh data
                 if (syncingRef.current && !status.is_syncing && userId) {
-                    await fetchData(userId);
+                    await fetchData(userId, showRedeemed);
                 }
 
                 setSyncing(status.is_syncing);
@@ -122,7 +143,7 @@ export default function DashboardPage() {
         poll();
 
         return () => clearTimeout(pollTimeout);
-    }, [router, fetchData, toast]);
+    }, [router, fetchData, toast, showRedeemed]);
 
 
     const handleForceSync = async () => {
@@ -142,60 +163,10 @@ export default function DashboardPage() {
         }
     };
 
-    const handleSort = (field: SortField) => {
-        if (sortField === field) {
-            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-        } else {
-            setSortField(field);
-            setSortDirection('desc');
-        }
-    };
-
-    const getSortedHoldings = (holdings: Holding[]) => {
-        return [...holdings].sort((a, b) => {
-            let aVal: number | string = 0;
-            let bVal: number | string = 0;
-
-            switch (sortField) {
-                case 'scheme_name':
-                    aVal = a.scheme_name.toLowerCase();
-                    bVal = b.scheme_name.toLowerCase();
-                    break;
-                case 'units':
-                    aVal = a.units;
-                    bVal = b.units;
-                    break;
-                case 'current_nav':
-                    aVal = a.current_nav;
-                    bVal = b.current_nav;
-                    break;
-                case 'current_value':
-                    aVal = a.current_value;
-                    bVal = b.current_value;
-                    break;
-                case 'invested_value':
-                    aVal = a.invested_value;
-                    bVal = b.invested_value;
-                    break;
-            }
-
-            if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
-            if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
-            return 0;
-        });
-    };
-
-    const SortIcon = ({ field }: { field: SortField }) => {
-        if (sortField !== field) {
-            return <span className="opacity-30 ml-1">⇅</span>;
-        }
-        return <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>;
-    };
-
-    if (loading || (syncing && !data)) {
+    if (loading || syncing) {
         return (
-            <div className="min-h-screen">
-                <ProcessingOverlay phase={syncing ? 'SYNCING' : 'READING'} visible={true} detailText={syncProgress && syncProgress !== '0/0' ? `${syncProgress} schemes loaded` : undefined} />
+            <div className="min-h-screen bg-slate-50 dark:bg-slate-950/50">
+                <ProcessingOverlay phase={syncing ? 'SYNCING' : 'READING'} visible={true} detailText={syncProgress && syncProgress !== '0/0' ? `Updating NAV: ${syncProgress}` : 'Synchronizing NAV History...'} />
             </div>
         );
     }
@@ -221,7 +192,7 @@ export default function DashboardPage() {
 
     return (
         <div className="min-h-[calc(100vh-4rem)] p-4 sm:p-6 lg:p-8 bg-transparent">
-            <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
+            <div className="w-[90%] max-w-none mx-auto space-y-6 sm:space-y-8">
 
                 {/* Header */}
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white/90 dark:bg-slate-900/50 backdrop-blur-md p-5 rounded-2xl border border-slate-200 dark:border-white/5 shadow-sm dark:shadow-lg gap-4">
@@ -247,6 +218,25 @@ export default function DashboardPage() {
                         <Button variant="secondary" onClick={() => router.push('/upload')}>
                             Upload CAS
                         </Button>
+                        <button
+                            onClick={toggleRedeemed}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${showRedeemed
+                                ? 'bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-500/30 shadow-sm'
+                                : 'bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-white/10 hover:border-indigo-200 dark:hover:border-indigo-500/20 hover:text-indigo-600 dark:hover:text-indigo-400'
+                                }`}
+                            title={showRedeemed ? 'Hide fully exited holdings' : 'Show fully exited holdings'}
+                        >
+                            <span className="text-xs">👁</span>
+                            Show Exited
+                            {(data.redeemed_count > 0) && (
+                                <span className={`ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${showRedeemed
+                                    ? 'bg-indigo-200/60 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300'
+                                    : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+                                    }`}>
+                                    {data.redeemed_count}
+                                </span>
+                            )}
+                        </button>
                     </div>
                 </div>
 
@@ -285,7 +275,14 @@ export default function DashboardPage() {
                 {/* KPI Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                     <Card title="Current Value" href="/drilldown/current-value">
-                        <p className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-cyan-500 dark:from-indigo-400 dark:to-cyan-400 drop-shadow-sm">₹{total_value.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</p>
+                        <p className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-cyan-500 dark:from-indigo-400 dark:to-cyan-400 drop-shadow-sm mb-2">₹{total_value.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</p>
+                        {data.portfolio_1d_change_amount !== null && data.portfolio_1d_change_percent !== null && (
+                            <div className={`inline-flex items-center px-2.5 py-1 rounded-md text-sm font-semibold tracking-wide shadow-sm border ${data.portfolio_1d_change_amount >= 0 ? 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20' : 'bg-rose-50 text-rose-600 border-rose-100 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20'}`}>
+                                <span className="mr-1.5">{data.portfolio_1d_change_amount >= 0 ? '+' : '-'}₹{Math.abs(data.portfolio_1d_change_amount).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+                                <span className="opacity-80">({data.portfolio_1d_change_percent > 0 ? '+' : ''}{data.portfolio_1d_change_percent.toFixed(2)}%)</span>
+                                <span className="ml-2 text-[10px] uppercase tracking-wider opacity-60">1D</span>
+                            </div>
+                        )}
                     </Card>
                     <Card title="Invested Value" href="/drilldown/invested-value">
                         <p className="text-4xl font-bold text-slate-800 dark:text-slate-200">₹{invested_value.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</p>
@@ -301,6 +298,7 @@ export default function DashboardPage() {
                             </span>
                         </p>
                     </Card>
+
                     <Card title="XIRR" href="/drilldown/xirr">
                         <p className={`text-4xl font-bold ${xirr >= 0 ? 'text-violet-600 dark:text-violet-400 drop-shadow-[0_0_12px_rgba(167,139,250,0.3)]' : 'text-rose-500 dark:text-rose-400'}`}>
                             {xirr != null ? xirr.toFixed(2) : '0.00'}%
@@ -314,44 +312,51 @@ export default function DashboardPage() {
                         <table className="w-full text-left border-collapse">
                             <thead>
                                 <tr className="border-b border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950/50 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                                    <th className="px-6 py-4 rounded-tl-xl whitespace-nowrap cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors" onClick={() => handleSort('scheme_name')}>
-                                        <span className="flex items-center">Scheme<SortIcon field="scheme_name" /></span>
-                                    </th>
-                                    <th className="px-6 py-4 text-right whitespace-nowrap cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors" onClick={() => handleSort('units')}>
-                                        <span className="flex items-center justify-end">Units<SortIcon field="units" /></span>
-                                    </th>
-                                    <th className="px-6 py-4 text-right whitespace-nowrap cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors" onClick={() => handleSort('current_nav')}>
-                                        <span className="flex items-center justify-end">NAV<SortIcon field="current_nav" /></span>
-                                    </th>
-                                    <th className="px-6 py-4 text-right whitespace-nowrap cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors" onClick={() => handleSort('current_value')}>
-                                        <span className="flex items-center justify-end">Current Value<SortIcon field="current_value" /></span>
-                                    </th>
-                                    <th className="px-6 py-4 text-right rounded-tr-xl whitespace-nowrap cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors" onClick={() => handleSort('invested_value')}>
-                                        <span className="flex items-center justify-end">Invested Value<SortIcon field="invested_value" /></span>
-                                    </th>
+                                    <th className="px-6 py-4 rounded-tl-xl whitespace-nowrap">Scheme</th>
+                                    <th className="px-6 py-4 text-right whitespace-nowrap">Units</th>
+                                    <th className="px-6 py-4 text-right whitespace-nowrap">NAV</th>
+                                    <th className="px-6 py-4 text-right whitespace-nowrap">1D Change</th>
+                                    <th className="px-6 py-4 text-right whitespace-nowrap">Current Value</th>
+                                    <th className="px-6 py-4 text-right rounded-tr-xl whitespace-nowrap">Invested Value</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                                {getSortedHoldings(activeHoldings).map((h) => (
-                                    <tr key={h.isin} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+                                {holdings.map((h) => (
+                                    <tr key={h.isin} className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group ${h.is_redeemed ? 'opacity-55' : ''}`}>
                                         <td className="px-6 py-4 text-sm font-medium">
-                                            <Link href={h.amfi_code ? `/scheme/${h.amfi_code}` : '#'} className="text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 block truncate max-w-[200px] sm:max-w-xs md:max-w-md xl:max-w-xl transition-colors" title={h.scheme_name}>
-                                                {h.scheme_name}
-                                            </Link>
+                                            <div className="flex items-center gap-2">
+                                                <Link href={h.amfi_code ? `/scheme/${h.amfi_code}` : '#'} className={`${h.is_redeemed ? 'text-slate-500 dark:text-slate-500' : 'text-slate-800 dark:text-slate-200'} group-hover:text-indigo-600 dark:group-hover:text-indigo-400 block truncate max-w-[200px] sm:max-w-xs md:max-w-md xl:max-w-xl transition-colors`} title={h.scheme_name}>
+                                                    {h.scheme_name}
+                                                </Link>
+                                                {h.is_redeemed && (
+                                                    <span className="flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] uppercase font-bold tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-500 border border-slate-200 dark:border-white/10">
+                                                        Exited
+                                                    </span>
+                                                )}
+                                            </div>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400 text-right font-mono">{h.units.toFixed(3)}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400 text-right font-mono">₹{h.current_nav.toFixed(2)}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-indigo-700 dark:text-indigo-300 text-right font-semibold font-mono bg-indigo-50/50 dark:bg-indigo-500/[0.02]">₹{h.current_value.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400 text-right font-mono">{h.is_redeemed ? '—' : h.units.toFixed(3)}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400 text-right font-mono">{h.is_redeemed ? '—' : `₹${h.current_nav.toFixed(2)}`}</td>
+                                        <td className={`px-6 py-4 whitespace-nowrap text-sm text-right font-mono ${h.is_redeemed ? 'text-slate-400' : (h.nav_change_percent != null ? (h.nav_change_percent > 0 ? 'text-emerald-500' : (h.nav_change_percent < 0 ? 'text-rose-500' : 'text-slate-500')) : 'text-slate-400')}`}>
+                                            {h.is_redeemed ? '—' : (h.nav_change_percent != null ? `${h.nav_change_percent > 0 ? '+' : ''}${h.nav_change_percent.toFixed(2)}%` : '-')}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-indigo-700 dark:text-indigo-300 text-right font-semibold font-mono bg-indigo-50/50 dark:bg-indigo-500/[0.02]">{h.is_redeemed ? '₹0' : `₹${h.current_value.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
-                                            <span className="text-slate-700 dark:text-slate-300 font-mono">₹{h.invested_value.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
-                                            {h.is_estimated && (
-                                                <button
-                                                    onClick={() => router.push('/holdings/estimated')}
-                                                    className="ml-2 hover:opacity-70 transition-opacity bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded text-xs"
-                                                    title="Estimated Cost (Partial History)"
-                                                >
-                                                    ⚠️ Est.
-                                                </button>
+                                            {h.is_redeemed ? (
+                                                <span className="text-slate-400 dark:text-slate-600 font-mono">₹0</span>
+                                            ) : (
+                                                <>
+                                                    <span className="text-slate-700 dark:text-slate-300 font-mono">₹{h.invested_value.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+                                                    {h.is_estimated && (
+                                                        <button
+                                                            onClick={() => router.push('/holdings/estimated')}
+                                                            className="ml-2 hover:opacity-70 transition-opacity bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded text-xs"
+                                                            title="Estimated Cost (Partial History)"
+                                                        >
+                                                            ⚠️ Est.
+                                                        </button>
+                                                    )}
+                                                </>
                                             )}
                                         </td>
                                     </tr>

@@ -31,6 +31,13 @@ FROM builder AS test
 
 # Copy application code for testing
 COPY . .
+# ensure config is explicitly included and identifiable
+COPY config/ ./config/
+# move fallback NAVdata
+COPY app/data/NAVAll.txt /data/ || true
+
+COPY start.sh /app
+COPY crontab /app/crontab
 
 # Run tests
 RUN pytest -v --tb=short --cov=app --cov-report=term-missing
@@ -51,7 +58,8 @@ RUN apk add --no-cache \
     libpq \
     bash \
     libffi \
-    openssl
+    openssl \
+    dcron
 
 # Copy Python packages from builder stage (exclude dev dependencies by copying selectively)
 COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages

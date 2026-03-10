@@ -32,6 +32,7 @@ export default function PeersDrilldownPage() {
 
     const [peers, setPeers] = useState<Peer[]>([]);
     const [schemeName, setSchemeName] = useState<string>('');
+    const [schemeIsin, setSchemeIsin] = useState<string>('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -66,6 +67,7 @@ export default function PeersDrilldownPage() {
                 if (res && res.peers) {
                     setPeers(res.peers);
                     setSchemeName(res.scheme_name || `Scheme ${amfiCode}`);
+                    setSchemeIsin(res.isin || '');
                 }
             } catch (err: any) {
                 console.error("Failed to fetch peers", err);
@@ -208,15 +210,16 @@ export default function PeersDrilldownPage() {
                                         <td colSpan={12} className="px-4 py-8 text-center text-slate-500 italic">No peers match your search.</td>
                                     </tr>
                                 ) : sortedAndFilteredPeers.map((p, i) => {
-                                    const isClickable = p.peer_amfi_code || p.peer_isin;
+                                    const isHighlight = (p.peer_isin === schemeIsin) || (p.fund_name === schemeName);
                                     return (
-                                        <tr
-                                            key={i}
-                                            className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${isClickable ? 'cursor-pointer' : ''}`}
-                                            onClick={() => isClickable && handlePeerClick(p)}
-                                        >
-                                            <td className="px-4 py-2 text-slate-800 dark:text-slate-300 font-medium">
-                                                {p.fund_name}
+                                        <tr key={i} className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all ${isHighlight ? 'bg-indigo-100/50 dark:bg-indigo-500/20 shadow-[inset_4px_0_0_0_theme(colors.indigo.500)]' : ''}`}>
+                                            <td className={`px-4 py-2 font-medium ${isHighlight ? 'text-indigo-800 dark:text-indigo-300' : 'text-slate-800 dark:text-slate-300'}`}>
+                                                <div className="flex items-center gap-2">
+                                                    {p.fund_name}
+                                                    {isHighlight && (
+                                                        <span className="px-1.5 py-0.5 text-[9px] bg-indigo-500 text-white rounded uppercase tracking-tighter">Current</span>
+                                                    )}
+                                                </div>
                                                 {p.fund_name === 'Unknown Peer' && p.peer_isin && <div className="text-[10px] text-slate-400 font-mono">ISIN: {p.peer_isin}</div>}
                                             </td>
 
@@ -259,7 +262,7 @@ export default function PeersDrilldownPage() {
                                                 </>
                                             )}
                                         </tr>
-                                    );
+                                    )
                                 })}
                             </tbody>
                         </table>

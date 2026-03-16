@@ -135,3 +135,30 @@ export async function getAmfiCodeFromIsin(isin: string): Promise<string | null> 
         return null;
     }
 }
+
+export async function searchSchemes(query: string, limit: number = 20, userId?: string) {
+    if (!query || query.trim().length < 2) {
+        throw new Error('Search query must be at least 2 characters long');
+    }
+
+    const params = new URLSearchParams({
+        q: query.trim(),
+        limit: limit.toString(),
+    });
+
+    const headers: HeadersInit = {};
+    if (userId) {
+        headers['x-user-id'] = userId;
+    }
+
+    const res = await fetch(`${API_BASE}/scheme/search?${params}`, {
+        headers,
+    });
+
+    if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ detail: 'Search failed' }));
+        throw new Error(errorData.detail || 'Search failed');
+    }
+
+    return res.json();
+}

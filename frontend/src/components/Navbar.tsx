@@ -43,6 +43,15 @@ export default function Navbar() {
                             >
                                 Upload CAS
                             </Link>
+                            <Link
+                                href="/search"
+                                className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors ${isActive("/search")
+                                    ? "border-indigo-500 text-indigo-600 dark:text-white"
+                                    : "border-transparent text-slate-500 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600 hover:text-slate-900 dark:hover:text-slate-200"
+                                    }`}
+                            >
+                                Search Funds
+                            </Link>
                         </div>
                     </div>
 

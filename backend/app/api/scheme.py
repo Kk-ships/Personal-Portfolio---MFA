@@ -29,6 +29,7 @@ from app.services.mfapi_client import (
     extract_nav_history,
     fetch_scheme_data,
 )
+from app.utils.nav_search import search_schemes_from_file
 
 router = APIRouter()
 
@@ -52,6 +53,132 @@ def get_amfi_code_from_isin(isin: str) -> str | None:
             return isin_map.get(isin)
     except Exception:
         return None
+
+
+@router.get("/search")
+def search_schemes(
+    q: str,
+    limit: int = 20,
+    x_user_id: str | None = Header(None, alias="x-user-id"),
+    session: Session = Depends(get_session)
+):
+    """
+    Search for mutual fund schemes by name.
+    
+    Searches both the database (schemes in user portfolios) and the 
+    NAVAll.txt file (all available schemes) to provide comprehensive results.
+    
+    Args:
+        q: Search query string (case-insensitive partial match)
+        limit: Maximum number of results to return (default: 20, max: 100)
+        x_user_id: Optional user ID to mark schemes in user's portfolio
+    
+    Returns:
+        List of matching schemes with basic information and portfolio status
+    """
+    if not q or len(q.strip()) < 2:
+        raise HTTPException(
+            status_code=400, 
+            detail="Search query must be at least 2 characters long"
+        )
+    
+    # Limit maximum results
+    limit = min(limit, 100)
+    
+    # Parse user_id if provided
+    user_id = None
+    if x_user_id:
+        try:
+            user_id = UUID(x_user_id)
+        except ValueError:
+            pass  # Invalid UUID, just proceed without user context
+    
+    # Get user's active holdings if user_id provided
+    user_scheme_ids = set()
+    if user_id:
+        # Query to get schemes with net positive units for this user
+        user_transactions = session.exec(
+            select(Transaction)
+            .join(Folio)
+            .join(Portfolio)
+            .where(Portfolio.user_id == user_id)
+        ).all()
+        
+        # Calculate net units per scheme
+        scheme_units = {}
+        inflow_types = [
+            "PURCHASE", "PURCHASE_SIP", "SIP", "SWITCH_IN", "STP_IN", 
+            "OPENING_BALANCE", "DIVIDEND_REINVESTMENT"
+        ]
+        outflow_types = ["REDEMPTION", "SWITCH_OUT", "STP_OUT", "SWP"]
+        
+        for txn in user_transactions:
+            if txn.scheme_id not in scheme_units:
+                scheme_units[txn.scheme_id] = 0.0
+            
+            t_type = txn.type.upper()
+            if any(x in t_type for x in inflow_types):
+                scheme_units[txn.scheme_id] += txn.units or 0.0
+            elif any(x in t_type for x in outflow_types):
+                scheme_units[txn.scheme_id] -= abs(txn.units or 0.0)
+        
+        # Keep only schemes with net positive units
+        user_scheme_ids = {sid for sid, units in scheme_units.items() if units > 0.01}
+    
+    # 1. Search schemes in database first (priority to schemes user already has)
+    search_pattern = f"%{q.strip()}%"
+    db_schemes = session.exec(
+        select(Scheme)
+        .where(Scheme.name.ilike(search_pattern))
+        .limit(limit)
+    ).all()
+    
+    # Convert DB results to dict format
+    results = []
+    seen_amfi_codes = set()
+    
+    for scheme in db_schemes:
+        if scheme.amfi_code:
+            seen_amfi_codes.add(scheme.amfi_code)
+        
+        # Check if this scheme is in user's portfolio with positive units
+        in_portfolio = scheme.id in user_scheme_ids if user_id else False
+        
+        results.append({
+            "amfi_code": scheme.amfi_code,
+            "isin": scheme.isin,
+            "name": scheme.name,
+            "fund_house": scheme.fund_house,
+            "category": scheme.scheme_category,
+            "type": scheme.type,
+            "latest_nav": scheme.latest_nav,
+            "latest_nav_date": (
+                scheme.latest_nav_date.isoformat() 
+                if scheme.latest_nav_date else None
+            ),
+            "in_portfolio": in_portfolio,
+        })
+    
+    # 2. If we don't have enough results, search NAVAll.txt
+    if len(results) < limit:
+        remaining = limit - len(results)
+        file_results = search_schemes_from_file(q.strip(), limit=remaining * 2)
+        
+        # Add file results that aren't already in DB results
+        for file_scheme in file_results:
+            if file_scheme["amfi_code"] not in seen_amfi_codes:
+                seen_amfi_codes.add(file_scheme["amfi_code"])
+                file_scheme["in_portfolio"] = False
+                results.append(file_scheme)
+                
+                if len(results) >= limit:
+                    break
+    
+    return {
+        "query": q,
+        "count": len(results),
+        "results": results
+    }
 
 
 @router.get("/by-isin/{isin}")
@@ -517,7 +644,7 @@ def get_scheme_enrichment(
     personalized_highlights = generate_custom_highlights(dto)
     dto.kbyi = json.dumps(personalized_highlights)
     
-    dto.isin = scheme.isin
-    dto.scheme_name = scheme.name
+    dto.isin = scheme_isin
+    dto.scheme_name = scheme_name
 
     return dto
